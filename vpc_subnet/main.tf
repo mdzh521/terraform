@@ -1,15 +1,17 @@
 variable "vpc_cidr_block" {
   description = "VPC的CIDR块"
-  default     = "10.0.0.0/16"
+}
+
+variable "azs" {
+  description = "可用区列表"
+}
+
+variable "subnet_names" {
+  description = "子网名称列表"
 }
 
 variable "subnet_cidr_blocks" {
   description = "子网的CIDR块列表"
-  default     = ["10.0.1.0/24", "10.0.2.0/24"] # a区和b区的CIDR块
-}
-
-provider "alicloud" {
-  region = "ap-southeast-1" # 香港区域
 }
 
 resource "alicloud_vpc" "example_vpc" {
@@ -19,11 +21,11 @@ resource "alicloud_vpc" "example_vpc" {
 }
 
 resource "alicloud_vswitch" "example_vswitch" {
-  count            = length(var.subnet_cidr_blocks)
+  count            = length(var.subnet_names)
   vpc_id           = alicloud_vpc.example_vpc.id
   cidr_block       = var.subnet_cidr_blocks[count.index]
-  vswitch_name     = "example-vswitch-${count.index}"
-  availability_zone = element(["a", "b"], count.index)
+  vswitch_name     = "${var.subnet_names[count.index]}-${var.azs[count.index % length(var.azs)]}"
+  availability_zone = element(var.azs, count.index % length(var.azs))
 }
 
 output "vpc_id" {
@@ -33,4 +35,3 @@ output "vpc_id" {
 output "vswitch_ids" {
   value = alicloud_vswitch.example_vswitch[*].id
 }
-

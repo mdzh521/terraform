@@ -1,32 +1,24 @@
-variable "security_group_ports" {
-  description = "安全组规则端口列表"
-  default     = [22, 80, 8080, 443]
+variable "name" {
+  description = "安全组名称"
 }
 
-provider "alicloud" {
-  region = "ap-southeast-1" # 香港区域
+variable "rules" {
+  description = "安全组规则"
+  default     = []
 }
 
 resource "alicloud_security_group" "example_security_group" {
-  vpc_id       = var.vpc_id
-  name         = "example-security-group"
-  description  = "Example Security Group"
+  name        = var.name
+  description = "默认安全组规则"
 
   dynamic "rule" {
-    for_each = var.security_group_ports
+    for_each = var.rules
     content {
-      type              = "ingress"
-      ip_protocol       = "tcp"
-      port_range        = "${rule.value}/${rule.value}"
-      priority          = rule.key + 1
-      policy            = "accept"
+      description       = rule.value["description"]
+      ip_protocol       = rule.value["ip_protocol"]
+      port_range        = rule.value["port_range"]
+      cidr_blocks       = rule.value["cidr_blocks"]
       security_group_id = alicloud_security_group.example_security_group.id
-      description       = "Allow port ${rule.value}"
     }
   }
 }
-
-output "security_group_id" {
-  value = alicloud_security_group.example_security_group.id
-}
-
