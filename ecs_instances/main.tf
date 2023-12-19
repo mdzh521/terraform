@@ -38,7 +38,7 @@ variable "data_disk" {
 
 resource "alicloud_instance" "example_instance" {
   count         = var.instance_count
-  instance_name = "ali-hk-saas-prod-${var.service_type}-${count.index + 1}"
+  instance_name = "${var.service_type}-${count.index + 1}"
   vswitch_id    = var.subnet_ids[count.index % length(var.subnet_ids)]
   image_id      = var.image_id
   instance_type = var.instance_type
