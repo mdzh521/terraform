@@ -92,7 +92,7 @@ data "alicloud_vswitches" "example_vswitches" {
 }
 
 module "redis_instances" {
-  source = "./service_instances"
+  source = "./ecs_instances"
 
   instance_count = 3
   service_type   = "redis"
@@ -105,7 +105,7 @@ module "redis_instances" {
 }
 
 module "mysql_instances" {
-  source = "./service_instances"
+  source = "./ecs_instances"
 
   instance_count = 3
   service_type   = "mysql"
