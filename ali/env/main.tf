@@ -52,6 +52,29 @@ module "vpc_subnet_nginx" {
   subnet_cidr_blocks = var.subnet_cidr_blocks_nginx
 }
 
+variable "subnet_names_nat" {
+  description = "子网名称列表"
+  default     = [
+    "prod-nat",
+  ]
+}
+
+variable "subnet_cidr_blocks_nat" {
+  description = "子网的CIDR块列表"
+  default     = [
+    "10.0.0.0/24",
+  ]
+}
+
+module "vpc_subnet_nat" {
+  source = "../module/vswitch"
+
+  vpc_id             = module.vpc.vpc_id
+  vsw_zone           = var.vsw_zone
+  subnet_names       = var.subnet_names_nat
+  subnet_cidr_blocks = var.subnet_cidr_blocks_nat
+}
+
 ########################### 子网创建 ########################
 
 
@@ -101,14 +124,29 @@ module "redis_instances" {
   instance_count        = 3
   service_name          = "ali-hk-nginx"
   
-  image_id = "<实际使用的镜像ID>"
-  instance_type = "<实际使用规格>"
-  key_name = "<实际使用的key>"
-  data_disk_category = "cloud_essd"
-  data_disk_size = 100
-  data_disk_level = "PL1"
-  subnet_names = module.vpc_subnet_nginx.vsw_id
-  security_group = module.security_group.security_id
-  vpc_id = module.vpc.vpc_id
+  image_id              = "<实际使用的镜像ID>"
+  instance_type         = "<实际使用规格>"
+  key_name              = "<实际使用的key>"
+  data_disk_category    = "cloud_essd"
+  data_disk_size        = 100
+  data_disk_level       = "PL1"
+  subnet_names          = module.vpc_subnet_nginx.vsw_id
+  security_group        = module.security_group.security_id
+  vpc_id                = module.vpc.vpc_id
 }
 ########################### ECS 创建 #######################
+
+########################### NAT 创建 #######################
+module "nat_gateway" {
+  source = "../module/nat"
+
+  vpc_id              = module.vpc.vpc_id
+  eip_count           = 1 
+  eip_bandwitdth      = 10
+  nat_gateway_name    = "prod-nat"
+  eip_charge_type     = "PayByTraffic"
+  nat_gateway_spec    = "Enhanced"
+
+  vsw_id              = tostring(module.vpc_subnet_nginx.vsw_id[0])
+  vpc_cidr_block      = var.vpc_cidr_block
+}
