@@ -8,11 +8,12 @@ resource "alicloud_instance" "ecs" {
   instance_type                 = var.instance_type
   vswitch_id                    = element(var.subnet_names, count.index % length(var.subnet_names))
   security_groups               = [var.security_group]
-  key_name                      = var.key_name
-  system_disk_category          = "cloud_efficiency"
-  system_disk_size              = 100
+  #key_name                      = var.key_name
+  system_disk_performance_level = "PL0"
+  system_disk_category          = "cloud_ssd"
+  system_disk_size              = 200
 
-  data_disk {
+  data_disks {
     category              = var.data_disk_category
     size                  = var.data_disk_size
     performance_level     = var.data_disk_level
@@ -51,10 +52,10 @@ variable "instance_type" {
   type        = string
 }
 
-variable "key_name" {
-  description = "密钥-KEY"
-  type = string
-}
+# variable "key_name" {
+#   description = "密钥-KEY"
+#   type = string
+# }
 
 variable "security_group" {
   description = "安全组"

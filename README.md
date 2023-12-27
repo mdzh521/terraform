@@ -2,21 +2,29 @@
 ## 目录结构
 
 ```
-/terraform/ali$ tree 
 .
-├── env
-│   └── main.tf
-└── module
-    ├── ecs
-    │   └── main.tf
-    ├── nat
-    │   └── main.tf
-    ├── secgroup
-    │   └── main.tf
-    ├── vpc
-    │   └── main.tf
-    └── vswitch
-        └── main.tf
+├── README.md
+└── ali
+    ├── env
+    │   ├── network
+    │   │   ├── main.tf
+    │   │   ├── varable.tf
+    │   │   └── version.tf
+    │   └── service
+    │       ├── main.tf
+    │       ├── varable.tf
+    │       └── version.tf
+    └── module
+        ├── ecs
+        │   └── main.tf
+        ├── nat
+        │   └── main.tf
+        ├── secgroup
+        │   └── main.tf
+        ├── vpc
+        │   └── main.tf
+        └── vswitch
+            └── main.tf
 ```
 
 ## 基础命令展示
