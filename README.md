@@ -73,6 +73,7 @@ terraform graph 查看模块
 ```
 terraform console
 ```
+
 ### 条件表达式
 condition ? true_val : false_val
 condition 条件 （返回值为 true/false）
