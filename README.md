@@ -14,7 +14,7 @@ terraform plan
 terraform apply
 
 ## Terraform 语法
-; https://registry.terraform.io/browse/providers 通过此链接可以查看官方验证的方法
+<!-- https://registry.terraform.io/browse/providers 通过此链接可以查看官方验证的方法 -->
 
 ### 1. provider
 terraform 是通过provider 来维护基础设施，使用provider来和云供应商提供的API进行交互
