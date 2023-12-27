@@ -1,6 +1,7 @@
 # 基础设施及代码--Terraform
 ## 目录结构
-'''
+
+```
 /terraform/ali$ tree 
 .
 ├── env
@@ -16,7 +17,8 @@
     │   └── main.tf
     └── vswitch
         └── main.tf
-'''
+```
+
 ## 基础命令展示
 ### terraform
 基础设施建设
