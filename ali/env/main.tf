@@ -4,6 +4,14 @@ provider "alicloud" {
   region     = "ap-southeast-1" # 香港区域
 }
 
+provider "alicloud" {
+  alias = "hk"
+  access_key = "YOUR_ACCESS_KEY"
+  secret_key = "YOUR_SECRET_KEY"
+  region     = "ap-southeast-1" # 香港区域
+}
+
+
 ############################ vpc 创建 #######################
 
 variable "vpc_cidr_block" {
