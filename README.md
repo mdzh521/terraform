@@ -70,8 +70,9 @@ terraform graph 查看模块
 
 ## Terraform 表达式
 <summary>terraform 调试工具 console 调用方法</summary>
-<summary>terraform console</summary>
-
+```
+terraform console
+```
 ### 条件表达式
 condition ? true_val : false_val
 condition 条件 （返回值为 true/false）
@@ -86,6 +87,7 @@ false_val 条件为 false 的值
 splat 表达式提供了一种更简洁的方式，来表达可以用for表达式执行常见操作。
 
 变量内容
+```
 vsw_spec = [{
     "name" = "prod-redis-01",
     "cidr" = "10.10.10.1"
@@ -93,6 +95,6 @@ vsw_spec = [{
     "name" = "prod-redis-02",
     "cidr" = "10.10.10.2"
 }]
-
+```
 变量调用方式
 var.vsw_spec[*].name
