@@ -20,22 +20,21 @@ locals {
   vsw_zone       = ["cn-hongkong-c", "cn-hongkong-b"]
 
   ## nginx 子网规划
-  subnet_names_nginx = [
-    "prod-nginx",
-    "prod-nginx",
-  ]
-  subnet_cidr_blocks_nginx = [
-    "10.0.1.0/24",
-    "10.0.2.0/24",
+  subnet_nginx = [{
+    "name" = "prod-nginx",
+    "cidr" = "10.0.1.0/24",
+  },{
+    "name" = "prod-nginx",
+    "cidr" = "10.0.2.0/24",
+  }
   ]
 
+
   ## nat 的子网规划
-  subnet_names_nat = [
-    "prod-nat",
-  ]
-  subnet_cidr_blocks_nat = [
-    "10.0.0.0/24",
-  ]
+  subnet_nat = [{
+    "name" = "prod-nat"
+    cidr = "10.0.0.0/24",
+  }]
 
   ## 默认安全组绑定
   security_group_name = "prod-common-security"
@@ -60,8 +59,8 @@ module "vpc_subnet_nginx" {
 
   vpc_id             = module.vpc.vpc_id
   vsw_zone           = local.vsw_zone
-  subnet_names       = local.subnet_names_nginx
-  subnet_cidr_blocks = local.subnet_cidr_blocks_nginx
+  subnet_names       = local.subnet_nginx[*].name
+  subnet_cidr_blocks = local.subnet_nginx[*].cidr
 }
 
 module "vpc_subnet_nat" {
@@ -69,8 +68,8 @@ module "vpc_subnet_nat" {
 
   vpc_id             = module.vpc.vpc_id
   vsw_zone           = local.vsw_zone
-  subnet_names       = local.subnet_names_nat
-  subnet_cidr_blocks = local.subnet_cidr_blocks_nat
+  subnet_names       = local.subnet_nat[*].name
+  subnet_cidr_blocks = local.subnet_nat[*].cidr
 }
 ########################### NGINX 子网创建 ########################
 
