@@ -31,8 +31,8 @@ locals {
 
   ## nat 的子网规划
   subnet_nat = [{
-    "name" = "prod-nat"
-    cidr = "10.0.0.0/24",
+    "name" = "prod-nat",
+    "cidr" = "10.0.0.0/24",
   }]
 
   ## 默认安全组绑定
