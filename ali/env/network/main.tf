@@ -26,8 +26,7 @@ locals {
   },{
     "name" = "prod-nginx",
     "cidr" = "10.0.2.0/24",
-  }
-  ]
+  }]
 
 
   ## nat 的子网规划
