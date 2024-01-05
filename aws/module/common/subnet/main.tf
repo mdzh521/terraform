@@ -1,19 +1,37 @@
-// modules/subnet/main.tf
-resource "aws_subnet" "example" {
-  count             = length(var.availability_zones)
-  vpc_id            = var.vpc_id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
-  availability_zone = var.availability_zones[count.index]
+resource "aws_subnet" "subnet" {
+  count                   = length(var.azs)
+  vpc_id                  = var.vpc_id
+  cidr_block              = var.subnet_cidr_blocks[count.index]
+  availability_zone       = element(var.azs, count.index % length(var.azs))
+  map_public_ip_on_launch = var.map_public_ip_on_launch
+
   tags = {
-    Name = "subnet-${count.index + 1}"
+    Name = "${var.subnet_names[count.index]}-${var.azs[count.index % length(var.azs)]}"
   }
 }
 
-resource "aws_route_table" "public" {
-  vpc_id = var.vpc_id
+##################### 变量 ###################
+variable "azs" {
+  description = "可用区选择"
+}
 
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = var.internet_gateway_id
-  }
+variable "vpc_id" {
+  description = "vpc ID 选择"
+}
+
+variable "subnet_cidr_blocks" {
+  description = "子网网段选择"
+}
+
+variable "subnet_names" {
+  description = "子网名称"
+}
+
+variable "map_public_ip_on_launch" {
+  description = "子网类型是否开启公网IP"
+}
+
+###################### 输出信息 ######################
+output "subnet_ids" {
+  value = aws_subnet.subnet[*].id
 }
