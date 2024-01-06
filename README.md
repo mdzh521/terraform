@@ -100,3 +100,99 @@ vsw_spec = [{
 ```
 变量调用方式
 var.vsw_spec[*].name
+
+
+### Provisioners
+用于在本地计算机或远程计算机上执行某些自定义操作和任务，shell脚本/复制文件目录。
+名称	            作用
+file	            文件配置器，复制传输文件目录（需要远程连接）
+local-exec	        本地执行shell命令
+remote-exec 	    远程执行shell命令（需要远程连接）
+connection	        定义连接远程主机的配置
+                    resource
+                    provisioner
+
+### connection
+``````
+## 嵌套在resource
+resource "xxx" "xxxx" {
+
+  provisioner "xx" {
+ 
+  }
+  
+  connection {
+ 
+  
+  }
+}
+
+
+## 嵌套在provisioner
+
+provisioner "file" {
+   
+    connection {
+      type     = "ssh"
+      user     = "root"
+      password = "${var.password}"
+      host     = "${var.host}"
+    }
+} 
+``````
+● type ssh 、winrm   默认ssh
+● user 远程的用户， Linux 中root、windows中的Administrator
+● host 远程的主机IP  self.public_ip
+● password 远程用户的密码
+● port 端口， Linux 22， windows 5985
+● timeout超时时间， 默认5m。 可以设置  3
+
+### file 
+复制源文件/opt/install.sh 到目标的/tmp/install.sh
+``````
+provisioner "file" {
+    source      = "/opt/install.sh"
+    destination = "/tmp/install.sh"
+    
+    connection {
+      type     = "ssh"
+      user     = "root"
+      password = "${var.password}"
+      host     = "${var.host}"
+    }
+} 
+``````
+● source  源文件
+● content 源文件内容
+● destination 目标文件
+
+### local-exec
+``````
+provisioner "local-exec" {
+    command = "touch versions.txt"
+}
+``````
+● command [必填] 运行的shell命令
+● work_dir 脚本运行的目录
+● interpreter 执行命令的解释器参数列表，默认使用操作系统中的默认值。
+● environment 访问terraform的变量，传递到command
+● when 何时执行
+
+
+### remote_exec
+``````
+provisioner "remote-exec" {
+    inline = [
+      "touch index.html",
+      "echo helloworld  >> index.html"
+    ]
+    
+    connection {
+      type     = "ssh"
+      user     = "root"
+      password = "${var.password}"
+      host     = "${var.host}"
+    }
+    
+}
+``````
