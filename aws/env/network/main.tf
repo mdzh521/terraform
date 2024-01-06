@@ -36,7 +36,25 @@ locals {
     "name" = "prod-public",
     "cidr" = "10.100.101.0/24",
   }]
+
   ####################################### 子网变量信息 #####################################
+
+  ####################################### 互联网网关信息 ###################################
+  gateway_name                   = "prod-ec2-gateway"
+  gateway_destination_cidr_block = "0.0.0.0/0"
+  ####################################### 互联网网关信息 ###################################
+
+  ####################################### 绑定外网网关信息 ###################################
+  routes = [
+    // nat 网关
+    {
+      destination_cidr_block = "0.0.0.0/0"
+      gateway_id             = module.nat.nat_id
+    }
+  ]
+  route_table_name = "prod-vpc-nat"
+
+  ####################################### 绑定外网网关信息 #############################
 
   ####################################### 安全组变量信息 #####################################
 
@@ -64,7 +82,7 @@ locals {
       cidr_blocks = ["10.10.10.10/32", "10.10.10.1/32"]
     },
   ]
-  
+
   ## 出网规则
   egress_ports = [
     {
@@ -113,7 +131,55 @@ module "subnet_public" {
 
 ################################################# subnet ######################################################
 
-############################## security_group ##############################
+################################################# nat ######################################################
+
+module "nat" {
+  source        = "../../module/common/nat"
+  nat_subnet_id = module.subnet_nginx.subnet_ids[0]
+}
+
+################################################# nat ######################################################
+
+################################################# 默认网关 gateway 路由 ######################################################
+
+data "aws_route_table" "table" {
+  vpc_id = module.vpc.vpc_id
+  filter {
+    name   = "association.main"
+    values = ["true"]
+  }
+}
+
+module "prod-gateway" {
+  source = "../../module/common/internet_gateway"
+
+  vpc_id                 = module.vpc.vpc_id
+  gateway_name           = local.gateway_name
+  route_table_id         = data.aws_route_table.table.id
+  destination_cidr_block = local.gateway_destination_cidr_block
+}
+
+################################################# 默认网关 gateway 路由 ######################################################
+
+################################################# route ######################################################
+
+module "nat_gateway_route" {
+  source = "../../module/common/route"
+
+  vpc_id           = module.vpc.vpc_id
+  route_table_name = local.route_table_name
+
+  routes = [
+    for route in local.routes : {
+      cidr_block = route.destination_cidr_block
+      gateway_id = route.gateway_id
+    }
+  ]
+}
+
+################################################# route ######################################################
+
+################################################# security_group ###################################################
 module "common_security_group" {
   source = "../../module/common/security_group"
 
@@ -143,4 +209,4 @@ module "common_security_group" {
   ]
 }
 
-############################## security_group ##############################
+################################################# security_group ###################################################

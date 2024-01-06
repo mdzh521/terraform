@@ -1,19 +1,23 @@
-# // modules/nat_gateway/main.tf
-# resource "aws_eip" "nat" {
-#   instance = aws_nat_gateway.main.id
-# }
+resource "aws_eip" "nat" {
+  domain = "vpc"
+}
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = var.nat_subnet_id
+  tags = {
+    Name = "prod-nat-网关"
+  }
+}
 
-# resource "aws_nat_gateway" "main" {
-#   allocation_id = aws_eip.nat.id
-#   subnet_id     = var.subnet_id
-# }
+############################## 变量 ############################
 
-# resource "aws_route_table" "private" {
-#   vpc_id = var.vpc_id
-# }
+variable "nat_subnet_id" {
+  description = "nat 分配子网"
+}
 
-# resource "aws_route" "private_route" {
-#   route_table_id         = aws_route_table.private.id
-#   destination_cidr_block = "0.0.0.0/0"
-#   nat_gateway_id         = aws_nat_gateway.main.id
-# }
+############################## 输出信息 ########################
+
+output "nat_id" {
+    value = aws_nat_gateway.main.id
+}
+
