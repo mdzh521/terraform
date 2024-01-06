@@ -18,6 +18,6 @@ variable "nat_subnet_id" {
 ############################## 输出信息 ########################
 
 output "nat_id" {
-    value = aws_nat_gateway.main.id
+  value = aws_nat_gateway.main.id
 }
 

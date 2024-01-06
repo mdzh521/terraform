@@ -19,7 +19,7 @@ variable "vpc_id" {
 
 variable "gateway_name" {
   description = "互联网网关名称"
-  default = "prod-ec2-gateway"
+  default     = "prod-ec2-gateway"
 }
 
 variable "route_table_id" {

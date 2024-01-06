@@ -51,7 +51,7 @@ variable "security_group_tag" {
 
 variable "ingress_rules" {
   description = "入站规则列表"
-  type        = list(object({
+  type = list(object({
     description = string
     from_port   = number
     to_port     = number
@@ -62,7 +62,7 @@ variable "ingress_rules" {
 
 variable "egress_rules" {
   description = "出站规则列表"
-  type        = list(object({
+  type = list(object({
     from_port   = number
     to_port     = number
     protocol    = string
