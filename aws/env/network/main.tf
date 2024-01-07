@@ -42,9 +42,9 @@ locals {
   ####################################### 互联网网关信息 ###################################
   gateway_name                   = "prod-ec2-gateway"
   gateway_destination_cidr_block = "0.0.0.0/0"
-  ####################################### 互联网网关信息 ###################################
+  route_table_name = "prod-vpc-nat"
 
-  ####################################### 绑定外网网关信息 ###################################
+  ## 自建路由表绑定
   routes = [
     // nat 网关
     {
@@ -52,7 +52,27 @@ locals {
       gateway_id             = module.nat.nat_id
     }
   ]
-  route_table_name = "prod-vpc-nat"
+
+  ### 可以直接绑定公网 IP 的路由表
+  route_table_association_subnet_gateway = [
+    {
+      subnet_id = module.subnet_public.subnet_ids[0]
+    },
+    {
+      subnet_id = module.subnet_public.subnet_ids[1]
+    },
+    # 添加其他子网 ID...
+  ]
+  ### 内网通过 NAT 出网
+  route_table_association_subnet_nat = [
+    {
+      subnet_id = module.subnet_nginx.subnet_ids[0]
+    },
+    {
+      subnet_id = module.subnet_nginx.subnet_ids[1]
+    },
+    # 添加其他子网 ID...
+  ]
 
   ####################################### 绑定外网网关信息 #############################
 
@@ -140,7 +160,7 @@ module "nat" {
 
 ################################################# nat ######################################################
 
-################################################# 默认网关 gateway 路由 ######################################################
+################################################# network route ######################################################
 
 data "aws_route_table" "table" {
   vpc_id = module.vpc.vpc_id
@@ -159,9 +179,7 @@ module "prod-gateway" {
   destination_cidr_block = local.gateway_destination_cidr_block
 }
 
-################################################# 默认网关 gateway 路由 ######################################################
 
-################################################# route ######################################################
 
 module "nat_gateway_route" {
   source = "../../module/common/route"
@@ -176,8 +194,20 @@ module "nat_gateway_route" {
     }
   ]
 }
+### 可以直接绑定公网 IP 的路由表
+resource "aws_route_table_association" "public" {
+  count           = length(local.route_table_association_subnet_gateway)
+  subnet_id       = local.route_table_association_subnet_gateway[count.index].subnet_id
+  route_table_id  = data.aws_route_table.table.id
+}
+### 内网通过 NAT 出网
+resource "aws_route_table_association" "intranet" {
+  count           = length(local.route_table_association_subnet_nat)
+  subnet_id       = local.route_table_association_subnet_nat[count.index].subnet_id
+  route_table_id  = module.nat_gateway_route.route_table_id
+}
 
-################################################# route ######################################################
+################################################# network route ######################################################
 
 ################################################# security_group ###################################################
 module "common_security_group" {

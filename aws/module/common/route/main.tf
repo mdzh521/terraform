@@ -31,3 +31,8 @@ variable "routes" {
 variable "route_table_name" {
   description = "路由表名称"
 }
+
+########################### 路由表输出 #################################3
+output "route_table_id" {
+  value = aws_route_table.example.id
+}
