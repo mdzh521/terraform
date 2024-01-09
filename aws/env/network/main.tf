@@ -125,6 +125,10 @@ module "vpc" {
   name                 = local.name
   enable_dns_hostnames = local.enable_dns_hostnames
 }
+
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
 ###################################################### vpc #####################################################
 
 ################################################# subnet ######################################################
@@ -149,6 +153,13 @@ module "subnet_public" {
   map_public_ip_on_launch = local.public_map_public_ip_on_launch
 }
 
+output "subnet_nginx" {
+  value = module.subnet_nginx.subnet_ids
+}
+
+output "subnet_public" {
+  value = module.subnet_public.subnet_ids
+}
 ################################################# subnet ######################################################
 
 ################################################# nat ######################################################
@@ -239,4 +250,7 @@ module "common_security_group" {
   ]
 }
 
+output "common_security_group" {
+  value = module.common_security_group.security_group_id
+}
 ################################################# security_group ###################################################
