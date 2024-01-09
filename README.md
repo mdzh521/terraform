@@ -2,29 +2,68 @@
 ## 目录结构
 
 ```
+# tree 
 .
 ├── README.md
-└── ali
-    ├── env
-    │   ├── network
-    │   │   ├── main.tf
-    │   │   ├── varable.tf
-    │   │   └── version.tf
-    │   └── service
-    │       ├── main.tf
-    │       ├── varable.tf
-    │       └── version.tf
-    └── module
-        ├── ecs
-        │   └── main.tf
-        ├── nat
-        │   └── main.tf
-        ├── secgroup
-        │   └── main.tf
-        ├── vpc
-        │   └── main.tf
-        └── vswitch
-            └── main.tf
+├── ali
+│   ├── env
+│   │   ├── network
+│   │   │   ├── main.tf
+│   │   │   ├── varable.tf
+│   │   │   └── version.tf
+│   │   └── service
+│   │       ├── main.tf
+│   │       ├── nginx.tf
+│   │       ├── varable.tf
+│   │       └── version.tf
+│   └── module
+│       ├── ecs
+│       │   └── main.tf
+│       ├── nat
+│       │   └── main.tf
+│       ├── secgroup
+│       │   └── main.tf
+│       ├── vpc
+│       │   └── main.tf
+│       └── vswitch
+│           └── main.tf
+├── aws
+│   ├── env
+│   │   ├── network
+│   │   │   ├── main.tf
+│   │   │   ├── varable.tf
+│   │   │   └── version.tf
+│   │   └── server
+│   │       ├── main.tf
+│   │       ├── mysql.tf
+│   │       ├── varable.tf
+│   │       └── version.tf
+│   └── module
+│       ├── common
+│       │   ├── internet_gateway
+│       │   │   └── main.tf
+│       │   ├── nat
+│       │   │   └── main.tf
+│       │   ├── route
+│       │   │   └── main.tf
+│       │   ├── security_group
+│       │   │   └── main.tf
+│       │   ├── subnet
+│       │   │   └── main.tf
+│       │   └── vpc
+│       │       └── main.tf
+│       └── server
+│           └── nginx
+│               └── main.tf
+└── docker
+    ├── README.md
+    ├── network
+    │   ├── main.tf
+    │   └── versions.tf
+    └── server
+        ├── jenkins.tf
+        ├── main.tf
+        └── versions.tf
 ```
 
 ## 基础命令展示
