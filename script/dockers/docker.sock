@@ -1,0 +1,10 @@
+[Unit]
+Description=Docker Socket for the API
+[Socket]
+ListenStream=/var/run/docker.sock
+SocketMode=0660
+# Specify a non-root user and group if possible
+# SocketUser=root
+# SocketGroup=docker
+[Install]
+WantedBy=sockets.target

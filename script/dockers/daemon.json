@@ -1,0 +1,14 @@
+{
+    "registry-mirrors": ["https://saq9vra1.mirror.aliyuncs.com","https://registry.docker-cn.com","http://hub-mirror.c.163.com","https://docker.mirrors.ustc.edu.cn"],
+    "insecure-registries":["hub.com"],
+    "exec-opts": ["native.cgroupdriver=systemd"],
+    "log-driver": "json-file",
+    "bip":"10.150.15.1/24",
+    "log-opts": {
+      "max-size": "100m",
+      "max-file": "1"
+    },
+    "data-root": "/data/docker",
+    "storage-driver": "overlay2"
+  }
+  
