@@ -8,3 +8,5 @@ crash.*.log
 .terraformrc
 terraform.rc
 output
+
+*.log
