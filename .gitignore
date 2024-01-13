@@ -1,0 +1,10 @@
+**/.terraform/*
+crash.log
+crash.*.log
+
+*.tfvars
+*.tfvars.*.log
+
+.terraformrc
+terraform.rc
+output
