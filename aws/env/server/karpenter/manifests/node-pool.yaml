@@ -1,0 +1,66 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: ${name}
+spec:
+  template:
+    metadata:
+      # Node 的 lable
+      labels: ${labels}
+    spec:
+      # 设置引用的 EC2NodeClass
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: ${node_class_name} # EC2NodeClass 名字
+
+      # Node 的污点
+      taints: ${taints}
+
+      # 节点的过期时间，可设置 “Never” 来禁用过期功能，表示node不会定期被替换
+      # 注意：修改这个值会导致现有的节点偏移（会被替换）
+      expireAfter: Never
+
+      # 类似 Pod 的 terminationGracePeriodSeconds，标识节点在被删除前的等待时间，以便有机会执行一些收尾和优雅退出过程；
+      # 注意1：修改这个值会导致现有的节点偏移（会被替换）
+      # 注意2：添加此配置，会导致 PDBs 和 karpenter.sh/do-not-disrupt 注解失效
+      # terminationGracePeriod: 48h
+
+      # 对节点多维度约束，支持的全部label: https://karpenter.sh/docs/concepts/scheduling/#well-known-labels
+      requirements:
+        - key: "node.kubernetes.io/instance-type"
+          operator: In
+          values: ${instance_types} # 节点规格
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["amd64"]
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["on-demand"]
+
+  # disruption 描述了 Karpenter 移除(缩容)和替换(更便宜)节点的方式
+  disruption:
+    # 控制合并哪些类型的节点：
+    #  WhenEmptyOrUnderutilized: 没有工作负载（不包括守护进程）或未充分利用且可以更改以降低成本时尝试移除或替换节点；注意：合并时，会发生pod的漂移
+    #  WhenEmpty:  没有工作负载（不包括守护进程）的节点
+    consolidationPolicy: WhenEmpty # 默认值 WhenEmptyOrUnderutilized
+
+    # 节点上的pod发生变化(添加/删除)， 等待多久开始合并；设置为Never时表示不合并，即关闭缩容
+    # 注意：合并时会发生pod的漂移
+    consolidateAfter: 10s # 默认值 0s
+
+    # # 控制缩容的速度，类似pha里的 behavior.scaleDown
+    # budgets:
+    #   - nodes: "0" # 关闭缩容
+    #   # On Weekdays during business hours, don't do any deprovisioning.
+    #   - schedule: "0 9 * * mon-fri"
+    #     duration: 8h
+    #     nodes: "0"
+
+  # 节点池的总资源限制，如果不设置，则会无限制扩容，直到触发云账号的配额限制
+  limits:
+    cpu: ${cpu_limit}
+    memory: ${memory_limit}
+
+  # 权重，当多个nodepool都符合扩容需求时，会在权重高的nodepool 里扩容
+  weight: 100

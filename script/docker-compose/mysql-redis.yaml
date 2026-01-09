@@ -1,0 +1,45 @@
+version: '3'
+services:
+
+  mysql8.0:
+    # image name
+    image: ${HUBADRESS}/mysql/mysql-server:${MYSQL_image}
+    # container name
+    container_name: node_mysql
+    # build container
+    #build: ./mysql
+    # Restart strategy
+    restart: always
+    environment:
+      # Time zone
+      TZ: Asia/Shanghai
+      # root passwd
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      #MYSQL_DATABASE: db_ign
+      #MYSQL_DATABASE: prof_model_set
+    ports:
+      - ${DB_PORT}:3306
+    volumes:
+      - ./mysql/data/:/var/lib/mysql/
+      - ./mysql/init/sql:/docker-entrypoint-initdb.d/sql
+      - ./mysql/init/:/docker-entrypoint-initdb.d/
+      - /etc/localtime:/etc/localtime:ro
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --explicit_defaults_for_timestamp=true
+      --lower_case_table_names=1
+
+  redis:
+    container_name: node_redis
+    image: ${HUBADRESS}/mysql/redis:${REDIS_image}
+    ports:
+      - ${REDIS_port}:6379
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/data:/data
+    restart: on-failure
+    command: redis-server /usr/local/etc/redis/redis.conf

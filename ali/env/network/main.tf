@@ -28,6 +28,29 @@ locals {
     "cidr" = "10.0.2.0/24",
   }]
 
+  subnet_db = [{
+    "name" = "prod-db",
+    "cidr" = "10.0.10.0/24",
+  },{
+    "name" = "prod-db",
+    "cidr" = "10.0.11.0/24",
+  }]
+
+  subnet_mid = [{
+    "name" = "prod-mid",
+    "cidr" = "10.0.21.0/24",
+  },{
+    "name" = "prod-mid",
+    "cidr" = "10.0.22.0/24",
+  }]
+
+  subnet_ops = [{
+    "name" = "prod-ops",
+    "cidr" = "10.0.31.0/24",
+  },{
+    "name" = "prod-ops",
+    "cidr" = "10.0.32.0/24",
+  }]
 
   ## nat 的子网规划
   subnet_nat = [{
