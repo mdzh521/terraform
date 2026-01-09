@@ -9,5 +9,6 @@ crash.*.log
 terraform.rc
 output
 
-
+.terraform.*
 *.log
+terraform.tfstate
