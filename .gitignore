@@ -12,3 +12,4 @@ output
 .terraform.*
 *.log
 terraform.tfstate
+terraform.tfstate.up
