@@ -4,27 +4,54 @@
 #   region = "ap-east-1"
 # }
 
+# provider "kubernetes" {
+#   host                   = module.eks.cluster_endpoint
+#   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+#   token                  = data.aws_eks_cluster_auth.this.token
+# }
+
+# provider "helm" {
+#   kubernetes {
+#     host                   = module.eks.cluster_endpoint
+#     cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+#     token                  = data.aws_eks_cluster_auth.this.token
+#   }
+# }
+
+# provider "kubectl" {
+#   apply_retry_count      = 10
+#   host                   = module.eks.cluster_endpoint
+#   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+#   load_config_file       = false
+#   token                  = data.aws_eks_cluster_auth.this.token
+# }
+
 provider "kubernetes" {
+  alias                  = "eks"
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
   token                  = data.aws_eks_cluster_auth.this.token
 }
 
-provider "helm" {
-  kubernetes {
-    host                   = module.eks.cluster_endpoint
-    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-    token                  = data.aws_eks_cluster_auth.this.token
-  }
-}
+# provider "helm" {
+#   alias = "eks"
+
+#   kubernetes {
+#     host                   = module.eks.cluster_endpoint
+#     cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+#     token                  = data.aws_eks_cluster_auth.this.token
+#   }
+# }
 
 provider "kubectl" {
+  alias                  = "eks"
   apply_retry_count      = 10
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
   load_config_file       = false
   token                  = data.aws_eks_cluster_auth.this.token
 }
+
 
 data "aws_eks_cluster_auth" "this" {
   name = module.eks.cluster_name
@@ -44,6 +71,7 @@ locals {
     "subnet-00eba1a9593aa0ec4",
   ]
   control_plane_subnet_ids = [
+    "subnet-0b94bfa63608fd123",
     "subnet-04aff912f207b7930",
     "subnet-00eba1a9593aa0ec4",
   ]
@@ -147,6 +175,13 @@ module "eks" {
     }
   }
 
+  iam_role_additional_policies = {
+    # 解决 ebs 权限问题
+    AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  }
+
+  enable_cluster_creator_admin_permissions = true
+
   eks_managed_node_group_defaults = {
     use_name_prefix = false
     subnet_ids      = local.node_subnet_ids
@@ -184,11 +219,6 @@ module "eks" {
       enabled = true
     }
 
-    iam_role_additional_policies = {
-      # 解决 ebs 权限问题
-      AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-    }
-
     # 配置 kubelet 参数
     cloudinit_pre_nodeadm = [
       {
@@ -210,7 +240,7 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
-    system-addons = {
+    otc-backend = {
       description    = "核心系统组件专用"
       instance_types = ["m7i.xlarge"]
       min_size       = 1
@@ -232,19 +262,19 @@ module "eks" {
       tags     = local.tags
       timeouts = local.timeouts
     }
-    standby = {
-      description    = "兜底的备用节点组"
-      instance_types = ["m7i.xlarge"]
-      min_size       = 0
-      max_size       = 10
-      desired_size   = 0
-      # 为节点添加k8s 标签，用于给karpenter选择节点时使用
-      labels = {
-        component = "standby"
-      }
-      tags     = local.tags
-      timeouts = local.timeouts
-    }
+    # standby = {
+    #   description    = "兜底的备用节点组"
+    #   instance_types = ["m7i.xlarge"]
+    #   min_size       = 0
+    #   max_size       = 10
+    #   desired_size   = 0
+    #   # 为节点添加k8s 标签，用于给karpenter选择节点时使用
+    #   labels = {
+    #     component = "standby"
+    #   }
+    #   tags     = local.tags
+    #   timeouts = local.timeouts
+    # }
     heavy-load = {
       cluster_version = "1.34"
       description     = "非业务重服务专用节点组"
@@ -306,9 +336,6 @@ module "k8s" {
 
   eks_name = local.name
 
-  # jumpserver 专用安全组ID
-  # jump_sg_id = local.jump_sg_id
-
   # 为导出 kubeconfig 创建的 sa 的 name
   kubeconfig_sa_name = local.eks_kubeconfig_sa
   # eks 安全组ID
@@ -343,13 +370,13 @@ module "eks_blueprints_addons" {
       addon_version = "v1.11.4-eksbuild.22"
       configuration_values = jsonencode({
         nodeSelector = {
-          "component" = "system-addons"
+          "component" = "otc-backend"
         }
         tolerations = [
           {
             key      = "dedicated"
             operator = "Equal"
-            value    = "system-addons"
+            value    = "otc-backend"
             effect   = "NoSchedule"
           }
         ]

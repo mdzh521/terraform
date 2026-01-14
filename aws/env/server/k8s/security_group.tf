@@ -23,10 +23,11 @@ resource "aws_vpc_security_group_ingress_rule" "elb_subnets" {
     Name = "elb 子网"
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }
+
 
 # 放行 node 子网
 resource "aws_vpc_security_group_ingress_rule" "eks_subnets" {
@@ -41,7 +42,7 @@ resource "aws_vpc_security_group_ingress_rule" "eks_subnets" {
     Name = "eks node 子网"
   }
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }

@@ -23,13 +23,13 @@ resource "kubernetes_storage_class" "efs" {
     # module.eks_blueprints_addons
   ]
 
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes = [
-      metadata[0].annotations,
-      reclaim_policy
-    ]
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  #   ignore_changes = [
+  #     metadata[0].annotations,
+  #     reclaim_policy
+  #   ]
+  # }
 }
 
 # 取消gp2为默认的sc
@@ -71,10 +71,10 @@ resource "kubernetes_storage_class" "gp3" {
     kubernetes_annotations.gp2,
   ]
 
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes = [
-      metadata[0].annotations,
-    ]
-  }
+  # lifecycle {
+  #   prevent_destroy = true
+  #   ignore_changes = [
+  #     metadata[0].annotations,
+  #   ]
+  # }
 }
