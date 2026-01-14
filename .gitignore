@@ -5,6 +5,8 @@ crash.*.log
 *.tfvars
 *.tfvars.*.log
 
+.vscode/
+
 .terraformrc
 terraform.rc
 output
