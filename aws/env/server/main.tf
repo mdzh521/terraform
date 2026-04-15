@@ -1,7 +1,7 @@
 provider "aws" {
   access_key = var.aws_access_key
   secret_key = var.aws_secret_key
-  region = "ap-east-1"
+  region     = var.aws_region
 }
 
 data "aws_availability_zones" "available" {}
@@ -30,4 +30,3 @@ data "aws_availability_zones" "available" {}
 #   ## 镜像ID，根据需求选择镜像
 #   image_ami = "ami-XXXXX"
 # }
-

@@ -61,7 +61,7 @@ data "aws_caller_identity" "current" {}
 
 locals {
   name   = "otc-prod"
-  region = "ap-east-1"
+  region = var.aws_region
   vpc_id = "vpc-053d208ce9f8be481"
 
   # node 子网ID

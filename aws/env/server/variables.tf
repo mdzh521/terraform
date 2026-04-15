@@ -1,23 +1,25 @@
-variable eks_admins {
+variable "eks_admins" {
   type        = list(string)
-  default     = ["ops",]
+  default     = ["ops"]
   description = "usernames for admin role"
 }
 
-variable registry_server {
+variable "registry_server" {
   type        = string
   default     = ""
   description = "image registry server"
 }
 
-variable registry_username {
+variable "registry_username" {
   type        = string
   default     = ""
   description = "image registry username"
+  sensitive   = true
 }
 
-variable registry_password {
+variable "registry_password" {
   type        = string
   default     = ""
   description = "image registry password"
+  sensitive   = true
 }

@@ -9,12 +9,12 @@
 │   ├── env
 │   │   ├── network
 │   │   │   ├── main.tf
-│   │   │   ├── varable.tf
+│   │   │   ├── credentials.tf
 │   │   │   └── version.tf
 │   │   └── service
 │   │       ├── main.tf
 │   │       ├── nginx.tf
-│   │       ├── varable.tf
+│   │       ├── credentials.tf
 │   │       └── version.tf
 │   └── module
 │       ├── ecs
@@ -31,12 +31,12 @@
 │   ├── env
 │   │   ├── network
 │   │   │   ├── main.tf
-│   │   │   ├── varable.tf
+│   │   │   ├── credentials.tf
 │   │   │   └── version.tf
 │   │   └── server
 │   │       ├── main.tf
 │   │       ├── mysql.tf
-│   │       ├── varable.tf
+│   │       ├── credentials.tf
 │   │       └── version.tf
 │   └── module
 │       ├── common
