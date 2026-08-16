@@ -9,14 +9,14 @@ terraform {
   }
 }
 
-resource "kubernetes_service_account" "kubeconfig_sa" {
+resource "kubernetes_service_account_v1" "kubeconfig_sa" {
   metadata {
     name      = var.kubeconfig_sa_name
     namespace = var.namespace
   }
 }
 
-resource "kubernetes_secret" "kubeconfig_sa_token" {
+resource "kubernetes_secret_v1" "kubeconfig_sa_token" {
   type                           = "kubernetes.io/service-account-token"
   wait_for_service_account_token = true
 
@@ -29,7 +29,7 @@ resource "kubernetes_secret" "kubeconfig_sa_token" {
   }
 }
 
-resource "kubernetes_cluster_role_binding" "kubeconfig_sa" {
+resource "kubernetes_cluster_role_binding_v1" "kubeconfig_sa" {
   metadata {
     name = "${var.kubeconfig_sa_name}-cluster-admin"
   }
@@ -42,7 +42,7 @@ resource "kubernetes_cluster_role_binding" "kubeconfig_sa" {
 
   subject {
     kind      = "ServiceAccount"
-    name      = kubernetes_service_account.kubeconfig_sa.metadata[0].name
+    name      = kubernetes_service_account_v1.kubeconfig_sa.metadata[0].name
     namespace = var.namespace
   }
 }
@@ -51,7 +51,7 @@ resource "local_sensitive_file" "kubeconfig" {
   content = templatefile("${path.module}/kubeconfig.tpl", {
     cluster_name    = var.cluster_name
     service_account = var.kubeconfig_sa_name
-    sa_token        = lookup(kubernetes_secret.kubeconfig_sa_token.data, "token")
+    sa_token        = lookup(kubernetes_secret_v1.kubeconfig_sa_token.data, "token")
     cluster_ca      = var.cluster_ca
     endpoint        = var.cluster_endpoint
   })

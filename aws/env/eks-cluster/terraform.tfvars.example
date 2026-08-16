@@ -1,0 +1,741 @@
+# EKS 环境变量模板。
+# 使用方式：复制为 terraform.tfvars 后按环境修改；不要把真实密钥提交到 Git。
+
+# 推荐通过环境变量传入 AWS 凭证，避免把 access key 写进 tfvars。
+# export TF_VAR_aws_access_key="..."
+# export TF_VAR_aws_secret_key="..."
+
+# AWS 区域。这里当前模板面向香港区 ap-east-1。
+aws_region = "ap-east-1"
+
+# EKS 集群名称，会作为多个资源命名前缀使用。
+cluster_name = "otc-new"
+
+# EKS Kubernetes 版本。修改这里时，需要同步核对 eks_addons 里的插件版本。
+kubernetes_version = "1.34"
+
+# network 环境的本地 state 路径，用来读取 VPC、子网、安全组等输出。
+network_state_path = "../network/terraform.tfstate"
+
+# 使用 network 环境输出的子网分组名称。
+network_subnet_groups = {
+  # EKS control plane 使用的子网组。
+  control_plane = "k8s"
+
+  # EKS managed node group 使用的子网组。
+  node = "k8s"
+
+  # LoadBalancer/Ingress 使用的子网组。
+  lb = "lb"
+}
+
+# 统一资源标签。会合并到多数 AWS 资源上，便于账单、归属和筛选。
+tags = {
+  # 平台或地域标识。
+  platform = "aws-hk"
+
+  # 资源负责人或团队。
+  owner = "ops"
+
+  # 项目名称。
+  project = "saas"
+}
+
+# EKS 集群级配置，主要传给 terraform-aws-modules/eks。
+cluster_config = {
+  # 是否开放公网 API endpoint。生产环境建议配合 endpoint_public_access_cidrs 收敛来源 IP。
+  endpoint_public_access = true
+
+  # 是否开放 VPC 内私网 API endpoint。
+  endpoint_private_access = true
+
+  # 允许访问公网 API endpoint 的 CIDR。
+  # 这里只放固定公网出口 IP；不要用 0.0.0.0/0 暴露给全网。
+  endpoint_public_access_cidrs = ["43.198.69.17/32"]
+
+  # 控制面日志类型。常用 api/audit/authenticator，排错时可加 controllerManager/scheduler。
+  enabled_log_types = ["api", "audit", "authenticator"]
+
+  # 鉴权模式。API_AND_CONFIG_MAP 同时兼容 EKS access entry 和 aws-auth ConfigMap。
+  authentication_mode = "API_AND_CONFIG_MAP"
+
+  # 是否给创建集群的 IAM principal 授予集群管理员权限。
+  enable_cluster_creator_admin_permissions = true
+
+  # 是否让 EKS 模块创建独立 node security group。false 表示复用现有公共安全组。
+  create_node_security_group = false
+
+  # 控制面 CloudWatch 日志保留天数。
+  cloudwatch_log_group_retention_in_days = 90
+
+  # 允许节点子网访问 EKS cluster security group，避免节点无法连 API server。
+  node_subnet_cluster_ingress = {
+    # true 会按 network 输出的 node subnet CIDR 自动加 ingress 规则。
+    enabled = true
+
+    # 安全组规则描述。
+    description = "Allow EKS node subnets to access the EKS cluster security group"
+  }
+
+  # 额外追加到 EKS 模块内部 cluster security group 的规则。
+  # 一般保持空 map；只有确实需要额外放行集群 API 或控制面访问时才添加。
+  security_group_additional_rules = {}
+
+  # 附加到 EKS cluster IAM role 的 AWS managed policy。
+  iam_role_additional_policies = {
+    # EBS CSI 所需策略。实际 EBS CSI controller 通过独立 IRSA role 授权。
+    AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  }
+}
+
+# EC2 Key Pair 名称，用于 EKS managed node group 和 Karpenter 节点 SSH。
+ec2_ssh_key = "my-eks-key"
+
+# 追加到 EKS managed node group launch template 名称上的后缀。
+# 当 launch template 需要替换而名称冲突时可递增，例如 v2/v3。
+launch_template_name_suffix = "v2"
+
+# EKS managed node group 的默认值，会被每个节点组继承，节点组内同名字段可覆盖。
+node_group_defaults = {
+  # false 使用固定名称；true 使用随机后缀名称。
+  use_name_prefix = false
+
+  # 将 EKS cluster primary security group 也挂到节点上，便于集群内部互通。
+  attach_cluster_primary_security_group = true
+
+  # 使用自定义 launch template，才能控制磁盘、IMDS、cloud-init 等参数。
+  use_custom_launch_template = true
+
+  # launch template 是否使用 name prefix。false 时名称更稳定。
+  launch_template_use_name_prefix = false
+
+  # 托管节点组 AMI 类型。当前使用 AL2023 x86_64 标准镜像。
+  ami_type = "AL2023_x86_64_STANDARD"
+
+  # 是否启用 EBS optimized。
+  ebs_optimized = true
+
+  # 是否禁止 API 直接终止实例。生产更安全，但销毁/替换时要确认流程。
+  disable_api_termination = true
+
+  # 是否启用 EC2 detailed monitoring。
+  enable_monitoring = true
+
+  # 节点根盘配置。
+  block_device_mappings = {
+    xvda = {
+      # Linux 根盘设备名。
+      device_name = "/dev/xvda"
+
+      ebs = {
+        # 根盘大小，单位 GiB。
+        volume_size = 200
+
+        # 根盘类型。gp3 可单独设置 iops/throughput。
+        volume_type = "gp3"
+
+        # gp3 IOPS。
+        iops = 3000
+
+        # gp3 吞吐，单位 MiB/s。
+        throughput = 150
+
+        # 节点销毁时是否同步删除根盘。
+        delete_on_termination = true
+      }
+    }
+  }
+
+  # EC2 Instance Metadata Service 配置。
+  metadata_options = {
+    # 是否启用 IMDS endpoint。
+    http_endpoint = "enabled"
+
+    # required 表示强制 IMDSv2。
+    http_tokens = "required"
+
+    # Pod 通过 metadata 获取凭证时可能需要 2；过低会影响部分组件。
+    http_put_response_hop_limit = 2
+
+    # 是否在 metadata 中暴露 instance tags。
+    instance_metadata_tags = "disabled"
+  }
+
+  # AL2023 nodeadm 启动前配置。这里用于调 kubelet 镜像垃圾回收阈值。
+  cloudinit_pre_nodeadm = [
+    {
+      # AL2023 EKS NodeConfig 的 cloud-init content type。
+      content_type = "application/node.eks.aws"
+
+      # 注意：这里是 nodeadm YAML 内容，缩进和字段名要保持 Kubernetes/AL2023 格式。
+      content = <<-EOT
+        ---
+        apiVersion: node.eks.aws/v1alpha1
+        kind: NodeConfig
+        spec:
+          kubelet:
+            config:
+              imageGCLowThresholdPercent: 60
+              imageGCHighThresholdPercent: 70
+      EOT
+    }
+  ]
+
+  # 节点组创建/删除超时。节点数量较多或容量紧张时可适当加大。
+  timeouts = {
+    create = "60m"
+    delete = "60m"
+  }
+
+  # 追加到所有 managed node group 的标签。
+  tags = {}
+}
+
+# EKS managed node group 定义。这里适合放稳定的基础容量。
+eks_managed_node_groups = {
+  # 核心业务/系统组件节点组。
+  otc-backend = {
+    # 节点组描述。
+    description = "核心系统组件专用"
+
+    # 实例规格列表。多规格可提高调度/容量成功率。
+    instance_types = ["m7i.xlarge"]
+
+    # 节点组最小实例数。
+    min_size = 1
+
+    # 节点组最大实例数。
+    max_size = 10
+
+    # 期望实例数。
+    desired_size = 4
+
+    # 节点标签，供 workload nodeSelector/affinity 使用。
+    labels = {
+      component = "otc-backend"
+    }
+  }
+
+  # 重负载或非核心业务节点组。
+  heavy-load = {
+    # 节点组描述。
+    description = "非业务重服务专用节点组"
+
+    # 实例规格列表。
+    instance_types = ["m7i.xlarge"]
+
+    # 节点组最小实例数。
+    min_size = 1
+
+    # 节点组最大实例数。
+    max_size = 10
+
+    # 期望实例数。
+    desired_size = 1
+
+    # 节点标签，便于把重负载应用调度到该节点组。
+    labels = {
+      tier      = "heavy-load"
+      stack     = "heavy-load"
+      component = "heavy-load"
+    }
+
+    # 节点污点。设置后 workload 必须有匹配 toleration 才能调度上来。
+    taints = {
+      dedicated = {
+        key    = "dedicated"
+        value  = "heavy-load"
+        effect = "NO_SCHEDULE"
+      }
+    }
+
+    # heavy-load 节点组覆盖默认 nodeadm 配置，额外调整容器日志参数。
+    cloudinit_pre_nodeadm = [
+      {
+        content_type = "application/node.eks.aws"
+        content      = <<-EOT
+          ---
+          apiVersion: node.eks.aws/v1alpha1
+          kind: NodeConfig
+          spec:
+            kubelet:
+              config:
+                imageGCLowThresholdPercent: 60
+                imageGCHighThresholdPercent: 70
+                containerLogMaxSize: 50Mi
+                containerLogMaxFiles: 5
+                containerLogMaxWorkers: 10
+                containerLogMonitorInterval: 10s
+        EOT
+      }
+    ]
+  }
+}
+
+# EFS 文件系统配置，供 EFS CSI 动态创建 Access Point 使用。
+efs_config = {
+  # EFS 文件系统名称。null 时由模块生成。
+  name = null
+
+  # 是否加密 EFS。
+  encrypted = true
+
+  # EFS 性能模式。generalPurpose 适合大多数低延迟场景。
+  performance_mode = "generalPurpose"
+
+  # 吞吐模式。elastic 会按负载弹性调整。
+  throughput_mode = "elastic"
+
+  # provisioned 模式下的吞吐值；elastic/generalPurpose 当前保持 null。
+  provisioned_throughput_in_mibps = null
+
+  # EFS 生命周期策略。
+  lifecycle_policy = {
+    # 文件多久未访问后转入 IA。
+    transition_to_ia = "AFTER_30_DAYS"
+
+    # IA 文件被访问后转回标准存储。
+    transition_to_primary_storage_class = "AFTER_1_ACCESS"
+  }
+
+  # 是否附加自定义 EFS resource policy。
+  attach_policy = false
+
+  # EFS security group 名称。null 时由模块生成。
+  security_group_name = null
+
+  # EFS security group 描述。
+  security_group_description = "Allow EKS nodes to access EFS"
+
+  # 是否启用 EFS backup policy。
+  enable_backup_policy = true
+
+  # 是否创建 EFS 跨区域复制配置。
+  create_replication_configuration = false
+
+  # Name tag 覆盖值。null 时跟随默认命名。
+  name_tag = null
+
+  # 追加到 EFS 资源的额外标签。
+  tags = {}
+}
+
+# Kubernetes 层初始化资源。依赖 EKS API endpoint 可用后创建。
+k8s_config = {
+  # 用于导出 kubeconfig 的 ServiceAccount 名称。
+  kubeconfig_sa_name = "kubeconfig-sa"
+
+  # kubeconfig ServiceAccount 所在 namespace。
+  kubeconfig_namespace = "kube-system"
+
+  # kubeconfig 输出路径。null 时输出到当前环境 output/kubeconfig。
+  kubeconfig_output_path = null
+
+  # StorageClass 定义。
+  storage_classes = {
+    # EFS 动态 provisioning StorageClass。
+    efs = {
+      # 是否创建 EFS StorageClass。
+      enabled = true
+
+      # StorageClass 名称。
+      name = "efs"
+
+      # PV 删除策略。Delete 表示 PVC 删除后底层 PV/Access Point 也会删除。
+      reclaim_policy = "Delete"
+
+      # WaitForFirstConsumer 会等 Pod 调度后再绑定卷。
+      volume_binding_mode = "WaitForFirstConsumer"
+
+      # EFS CSI StorageClass 参数。
+      parameters = {
+        # efs-ap 表示通过 Access Point 动态 provisioning。
+        provisioningMode = "efs-ap"
+
+        # 动态目录权限。
+        directoryPerms = "777"
+      }
+    }
+
+    # AWS 默认 gp2 StorageClass 补丁。
+    gp2 = {
+      # 是否修改 gp2 默认注解。
+      patch_default = true
+
+      # 目标 StorageClass 名称。
+      name = "gp2"
+
+      # false 表示取消 gp2 默认 StorageClass。
+      is_default = false
+    }
+
+    # gp3 StorageClass。
+    gp3 = {
+      # 是否创建 gp3 StorageClass。
+      enabled = true
+
+      # StorageClass 名称。
+      name = "gp3"
+
+      # 是否设置为默认 StorageClass。
+      is_default = true
+
+      # PV 删除策略。
+      reclaim_policy = "Delete"
+
+      # 是否允许 PVC 扩容。
+      allow_volume_expansion = true
+
+      # 卷绑定模式。
+      volume_binding_mode = "WaitForFirstConsumer"
+
+      # EBS CSI 参数。
+      parameters = {
+        # 文件系统类型。
+        fsType = "ext4"
+
+        # 是否加密 EBS 卷。这里必须是字符串。
+        encrypted = "true"
+
+        # EBS 卷类型。
+        type = "gp3"
+      }
+    }
+  }
+
+  # 自动创建的安全组规则名称，用于描述从 LB/node 子网访问集群的规则。
+  security_group_rule_names = {
+    elb_subnets  = "elb 子网"
+    node_subnets = "eks node 子网"
+  }
+}
+
+# EKS managed add-ons。版本必须和 kubernetes_version 兼容。
+eks_addons = {
+  # CoreDNS，负责集群 DNS。
+  coredns = {
+    # EKS add-on 版本。升级 Kubernetes 时必须重新核对。
+    addon_version = "v1.13.2-eksbuild.11"
+
+    # CoreDNS add-on 配置；本环境会自动 jsonencode。
+    configuration_values = {
+      # 把 CoreDNS 固定调度到核心节点组。
+      nodeSelector = {
+        component = "otc-backend"
+      }
+
+      # 容忍核心节点组污点；如果节点没有该污点，这段不会造成影响。
+      tolerations = [
+        {
+          key      = "dedicated"
+          operator = "Equal"
+          value    = "otc-backend"
+          effect   = "NoSchedule"
+        }
+      ]
+
+      # CoreDNS 自动扩缩容配置。
+      autoScaling = {
+        enabled     = true
+        minReplicas = 4
+        maxReplicas = 10
+      }
+
+      # CoreDNS Corefile。修改时注意语法，否则 DNS pod 会启动失败。
+      corefile = <<-EOF
+        .:53 {
+            errors
+            health {
+                lameduck 30s
+            }
+            ready
+            kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            }
+            prometheus :9153
+            forward . /etc/resolv.conf
+            cache 30
+            loop
+            reload
+            loadbalance
+        }
+      EOF
+
+      # CoreDNS 资源请求和限制。
+      resources = {
+        requests = {
+          memory = "100Mi"
+          cpu    = "600m"
+        }
+        limits = {
+          memory = "2Gi"
+          cpu    = "2"
+        }
+      }
+    }
+  }
+
+  # VPC CNI，负责 Pod 网络。该 add-on 会在节点组创建前安装。
+  vpc-cni = {
+    # EKS 1.34 对应的 VPC CNI 版本。
+    addon_version = "v1.23.0-eksbuild.1"
+  }
+
+  # kube-proxy，负责节点上的 Service 转发规则。
+  kube-proxy = {
+    # 版本应与 Kubernetes 小版本一致，例如 EKS 1.34 使用 v1.34.x。
+    addon_version = "v1.34.6-eksbuild.18"
+  }
+
+  # AWS EBS CSI Driver，负责 EBS 动态卷。
+  aws-ebs-csi-driver = {
+    # EKS add-on 版本。
+    addon_version = "v1.63.1-eksbuild.1"
+
+    # EBS CSI 创建/更新有时较慢，这里给更长超时。
+    timeouts = {
+      create = "45m"
+      update = "45m"
+      delete = "30m"
+    }
+  }
+}
+
+# Helm 类 add-ons，由 eks-blueprints-addons 管理。
+addons = {
+  # AWS Load Balancer Controller，负责 Ingress/Service NLB/ALB。
+  aws_load_balancer_controller = {
+    # 是否安装。
+    enabled = true
+
+    # Helm chart 版本。
+    chart_version = "1.7.1"
+
+    # Helm values，会被 yaml/json 编码后传入 chart。
+    values = {
+      # AWS API 限流参数，避免大量 TargetGroup/Ingress 同步时打爆 API。
+      awsApiThrottle = "Elastic Load Balancing v2:RegisterTargets|DeregisterTargets=8:40,Elastic Load Balancing v2:Describe.*=50:150"
+
+      # Service reconcile 并发数。
+      serviceMaxConcurrentReconciles = "30"
+
+      # TargetGroupBinding reconcile 并发数。
+      targetgroupbindingMaxConcurrentReconciles = "50"
+
+      # 全量同步周期。
+      syncPeriod = "720h"
+
+      # Ingress reconcile 并发数。
+      ingressMaxConcurrentReconciles = "30"
+
+      # Controller feature gate。
+      controllerConfig = {
+        featureGates = {
+          # 启用 Resource Groups Tagging API 相关能力。
+          EnableRGTAPI = "true"
+        }
+      }
+
+      # 是否启用 EndpointSlice。
+      enableEndpointSlices = "true"
+
+      # Controller pod 资源请求和限制。
+      resources = {
+        requests = {
+          cpu    = "200m"
+          memory = "400Mi"
+        }
+        limits = {
+          cpu    = "2048m"
+          memory = "2048Mi"
+        }
+      }
+    }
+
+    # 传给 eks-blueprints-addons 子模块的额外配置。
+    config = {}
+  }
+
+  # AWS EFS CSI Driver，负责 EFS 动态卷。
+  aws_efs_csi_driver = {
+    # 是否安装。
+    enabled = true
+
+    # Helm chart 版本。
+    chart_version = "2.5.6"
+
+    # 安装 namespace。
+    namespace = "kube-system"
+
+    # Controller service account 名称，会被 IRSA role 绑定使用。
+    controller_service_account_name = "efs-csi-controller-sa"
+
+    # Node daemonset service account 名称。
+    node_service_account_name = "efs-csi-node-sa"
+
+    # IRSA role 名称。null 时使用模块默认的 ${cluster_name}-efs-csi-role。
+    role_name = null
+
+    # 是否让 role name 使用随机前缀。
+    role_name_use_prefix = false
+
+    # 传给 eks-blueprints-addons 子模块的额外配置。
+    config = {}
+  }
+
+  # Metrics Server，供 HPA/VPA 和 kubectl top 使用。
+  metrics_server = {
+    # 是否安装。
+    enabled = true
+
+    # 额外配置。
+    config = {}
+  }
+
+  # Karpenter，负责按 Pod 需求自动创建节点。
+  karpenter = {
+    # 是否安装。
+    enabled = true
+
+    # Helm chart 版本。
+    chart_version = "1.7.1"
+
+    # 安装 namespace。
+    namespace = "kube-system"
+
+    # Karpenter controller IRSA role 名称。null 时按模块默认生成。
+    role_name = null
+
+    # 是否让 role name 使用随机前缀。
+    role_name_use_prefix = false
+
+    # Helm values。
+    values = {
+      # 把 Karpenter controller 固定到核心节点组。
+      nodeSelector = {
+        component = "otc-backend"
+      }
+
+      # 容忍核心节点组污点；如果节点没有该污点，这段不会造成影响。
+      tolerations = [
+        {
+          key      = "dedicated"
+          operator = "Equal"
+          value    = "otc-backend"
+          effect   = "NoSchedule"
+        }
+      ]
+    }
+
+    # 传给 eks-blueprints-addons 子模块的额外配置。
+    config = {}
+  }
+}
+
+# Karpenter EC2NodeClass，定义自动扩容节点的 EC2 层参数。
+karpenter_node_class = {
+  # EC2NodeClass 名称，NodePool 会引用它。
+  name = "al2023"
+
+  # Karpenter AMI selector alias。升级时需要确认该 alias 在当前 EKS/Karpenter 版本可用。
+  ami_alias = "al2023@v20250915"
+
+  # 是否启用 EC2 detailed monitoring。
+  detailed_monitoring = true
+
+  # Karpenter 节点 kubelet 参数。
+  kubelet = {
+    imageGCLowThresholdPercent  = 60
+    imageGCHighThresholdPercent = 70
+  }
+
+  # Karpenter 节点 IMDS 配置。
+  metadata_options = {
+    httpEndpoint = "enabled"
+
+    # 是否启用 IPv6 metadata endpoint。
+    httpProtocolIPv6 = "disabled"
+
+    # Pod 访问 metadata 时可能需要 2。
+    httpPutResponseHopLimit = 2
+
+    # required 表示强制 IMDSv2。
+    httpTokens = "required"
+  }
+
+  # Karpenter 节点磁盘配置。
+  block_device_mappings = [
+    {
+      # 根盘设备名。
+      deviceName = "/dev/xvda"
+
+      ebs = {
+        # 根盘大小，字符串格式，单位 Gi。
+        volumeSize = "100Gi"
+
+        # 根盘类型。
+        volumeType = "gp3"
+
+        # gp3 IOPS。
+        iops = 3000
+
+        # 是否加密根盘。
+        encrypted = true
+
+        # gp3 吞吐，单位 MiB/s。
+        throughput = 150
+
+        # 节点删除时是否删除根盘。
+        deleteOnTermination = true
+      }
+    }
+  ]
+
+  # 追加到 Karpenter 创建的 EC2 资源上的标签。
+  tags = {}
+
+  # 额外 EC2NodeClass spec 字段，用于模块暂未显式暴露的配置。
+  extra_spec = {}
+}
+
+# Karpenter NodePool，定义自动扩容节点的容量、实例类型和调度约束。
+karpenter_node_pools = {
+  karpenter-132 = {
+    # NodePool CPU 总额度。用于限制 Karpenter 最多扩到多少 CPU。
+    cpu_limit = "20"
+
+    # NodePool 内存总额度。
+    memory_limit = "64Gi"
+
+    # 允许 Karpenter 选择的实例规格。
+    instance_types = ["m7i.xlarge"]
+
+    # CPU 架构。
+    arch = ["amd64"]
+
+    # 容量类型。on-demand 稳定，spot 成本低但可能被回收。
+    capacity_types = ["on-demand"]
+
+    # 节点过期时间。Never 表示不因到期自动替换。
+    expire_after = "Never"
+
+    # 空闲节点回收策略。
+    disruption = {
+      # WhenEmpty 表示仅空节点才合并/回收。
+      consolidationPolicy = "WhenEmpty"
+
+      # 节点空闲多久后开始合并。
+      consolidateAfter = "10s"
+    }
+
+    # 多个 NodePool 同时匹配时的权重。
+    weight = 100
+
+    # Karpenter 创建节点时附加的 Kubernetes labels。
+    labels = {}
+
+    # Karpenter 创建节点时附加的 taints。
+    taints = {}
+  }
+}

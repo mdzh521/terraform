@@ -4,6 +4,8 @@ crash.*.log
 
 *.tfvars
 *.tfvars.*.log
+*.tfstate.backup
+tfplan*
 
 .vscode/
 

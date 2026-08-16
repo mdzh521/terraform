@@ -33,19 +33,23 @@ resource "aws_security_group" "allow" {
 
 variable "security_group_name" {
   description = "安全组名称"
+  type        = string
   default     = "common-prod"
 }
 
 variable "security_group_description" {
   description = "安全组描述信息"
+  type        = string
 }
 
 variable "vpc_id" {
   description = "vpc ID"
+  type        = string
 }
 
 variable "security_group_tag" {
   description = "安全组标签名称"
+  type        = string
   default     = "common-prod-tag"
 }
 

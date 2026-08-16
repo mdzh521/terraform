@@ -1,0 +1,97 @@
+aws_region = "us-east-1"
+
+tags = {}
+
+vpc_cidr_block       = "10.100.0.0/16"
+vpc_name             = "prod-vpc"
+enable_dns_hostnames = true
+
+# Add or remove AZs here. Every subnet group must provide the same number of
+# CIDR blocks in the same order. Reserved CIDRs are planned outside Terraform.
+availability_zones = ["us-east-1a", "us-east-1b"]
+
+subnet_groups = [
+  {
+    name        = "ops"
+    cidr_blocks = ["10.100.0.0/24", "10.100.1.0/24"]
+    tier        = "private"
+    role        = "ops"
+  },
+  {
+    name        = "mid"
+    cidr_blocks = ["10.100.8.0/24", "10.100.9.0/24"]
+    tier        = "private"
+    role        = "mid"
+  },
+  {
+    name        = "redis"
+    cidr_blocks = ["10.100.16.0/24", "10.100.17.0/24"]
+    tier        = "private"
+    role        = "redis"
+  },
+  {
+    name        = "mysql"
+    cidr_blocks = ["10.100.24.0/24", "10.100.25.0/24"]
+    tier        = "private"
+    role        = "mysql"
+  },
+  {
+    name        = "lb"
+    cidr_blocks = ["10.100.32.0/24", "10.100.33.0/24"]
+    tier        = "public"
+    role        = "lb"
+  },
+  {
+    name        = "nat"
+    cidr_blocks = ["10.100.40.0/24", "10.100.41.0/24"]
+    tier        = "public"
+    role        = "nat"
+  },
+  {
+    name        = "k8s"
+    cidr_blocks = ["10.100.64.0/22", "10.100.68.0/22"]
+    tier        = "private"
+    role        = "k8s"
+  },
+]
+
+kubernetes_subnet_discovery_tags = {
+  enabled                   = true
+  cluster_name              = "otc-new"
+  cluster_tag_subnet_groups = ["k8s", "lb"]
+  public_lb_subnet_groups   = ["lb"]
+  private_lb_subnet_groups  = []
+  extra_tags_by_group       = {}
+}
+
+gateway_name                   = "prod-ec2-gateway"
+gateway_destination_cidr_block = "0.0.0.0/0"
+
+nat_subnet_index                 = 0
+nat_gateway_name                 = "prod-nat-gateway"
+nat_eip_name                     = "prod-nat-eip"
+nat_route_table_name             = "prod-vpc-nat"
+nat_route_destination_cidr_block = "0.0.0.0/0"
+
+security_group_name        = "common-prod"
+security_group_description = "common-prod"
+security_group_tag         = "common-prod-tag"
+
+ingress_rules = [
+  {
+    description = "HTTP from office"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["10.10.10.10/32"]
+  },
+]
+
+egress_rules = [
+  {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  },
+]

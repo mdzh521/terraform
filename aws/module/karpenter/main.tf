@@ -18,6 +18,24 @@ variable "ec2_ssh_key" {
   type        = string
 }
 
+variable "node_class_name" {
+  description = "Karpenter EC2NodeClass name"
+  type        = string
+  default     = "al2023"
+}
+
+variable "node_ami_alias" {
+  description = "Karpenter AMI alias used by the EC2NodeClass"
+  type        = string
+  default     = "al2023@v20250915"
+}
+
+variable "node_class" {
+  description = "Karpenter EC2NodeClass spec settings"
+  type        = any
+  default     = {}
+}
+
 variable "eks_subnet_ids" {
   description = "eks子网ID"
   type        = list(string)
@@ -31,14 +49,15 @@ variable "node_sg_ids" {
 
 variable "node_pools" {
   description = "节点池配置"
-  type = map(object({
-    cpu_limit      = optional(string)
-    memory_limit   = optional(string)
-    instance_types = list(string)
-    labels         = optional(map(string), {})
-    taints         = optional(any, {})
-  }))
-  default = {}
+  type        = any
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for _, node_pool in var.node_pools : length(try(node_pool.instance_types, [])) > 0
+    ])
+    error_message = "Each node pool must include at least one instance type."
+  }
 }
 
 variable "tags" {
@@ -54,12 +73,137 @@ data "aws_key_pair" "ssh_key" {
 }
 
 locals {
-  node_class_name = "al2023"
-  node_ami_alias  = "al2023@v20250915" # 节点使用的镜像
+  node_class           = var.node_class
+  node_class_name      = coalesce(try(local.node_class.name, null), var.node_class_name)
+  node_ami_alias       = coalesce(try(local.node_class.ami_alias, null), var.node_ami_alias)
+  node_class_tags      = merge(var.tags, try(local.node_class.tags, {}), { component = "k8s" })
+  node_class_user_data = <<-EOT
+    #!/bin/bash
+    mkdir -p ~ec2-user/.ssh/
+    touch ~ec2-user/.ssh/authorized_keys
+    cat >> ~ec2-user/.ssh/authorized_keys <<EOF
+    ${data.aws_key_pair.ssh_key.public_key}
+    EOF
+    chmod -R go-w ~ec2-user/.ssh/authorized_keys
+    chown -R ec2-user ~ec2-user/.ssh
+  EOT
 
-  tags = merge(var.tags, {
-    component = "k8s"
-  })
+  node_class_manifest = {
+    apiVersion = "karpenter.k8s.aws/v1"
+    kind       = "EC2NodeClass"
+    metadata = {
+      name = local.node_class_name
+    }
+    spec = merge(
+      {
+        role               = var.iam_role_name
+        detailedMonitoring = try(local.node_class.detailed_monitoring, true)
+        amiSelectorTerms = [
+          {
+            alias = local.node_ami_alias
+          }
+        ]
+        kubelet = try(local.node_class.kubelet, {
+          imageGCLowThresholdPercent  = 60
+          imageGCHighThresholdPercent = 70
+        })
+        subnetSelectorTerms        = [for id in var.eks_subnet_ids : { id = id }]
+        securityGroupSelectorTerms = [for id in var.node_sg_ids : { id = id }]
+        tags                       = local.node_class_tags
+        metadataOptions = try(local.node_class.metadata_options, {
+          httpEndpoint            = "enabled"
+          httpProtocolIPv6        = "disabled"
+          httpPutResponseHopLimit = 2
+          httpTokens              = "required"
+        })
+        blockDeviceMappings = try(local.node_class.block_device_mappings, [
+          {
+            deviceName = "/dev/xvda"
+            ebs = {
+              volumeSize          = "100Gi"
+              volumeType          = "gp3"
+              iops                = 3000
+              encrypted           = true
+              throughput          = 150
+              deleteOnTermination = true
+            }
+          }
+        ])
+        userData = try(local.node_class.user_data, local.node_class_user_data)
+      },
+      try(local.node_class.extra_spec, {}),
+    )
+  }
+
+  node_pool_taints = {
+    for node_pool_name, node_pool in var.node_pools : node_pool_name => [
+      for taint_name, taint in try(node_pool.taints, {}) : {
+        key    = try(taint.key, taint_name)
+        value  = try(taint.value, taint)
+        effect = try(taint.effect, "NoSchedule")
+      }
+    ]
+  }
+
+  node_pool_manifests = {
+    for node_pool_name, node_pool in var.node_pools : node_pool_name => {
+      apiVersion = "karpenter.sh/v1"
+      kind       = "NodePool"
+      metadata = {
+        name = node_pool_name
+      }
+      spec = merge(
+        {
+          template = {
+            metadata = {
+              labels = try(node_pool.labels, {})
+            }
+            spec = {
+              nodeClassRef = {
+                group = "karpenter.k8s.aws"
+                kind  = "EC2NodeClass"
+                name  = local.node_class_name
+              }
+              taints      = local.node_pool_taints[node_pool_name]
+              expireAfter = try(node_pool.expire_after, "Never")
+              requirements = concat(
+                [
+                  {
+                    key      = "node.kubernetes.io/instance-type"
+                    operator = "In"
+                    values   = try(node_pool.instance_types, [])
+                  },
+                  {
+                    key      = "kubernetes.io/arch"
+                    operator = "In"
+                    values   = try(node_pool.arch, ["amd64"])
+                  },
+                  {
+                    key      = "karpenter.sh/capacity-type"
+                    operator = "In"
+                    values   = try(node_pool.capacity_types, ["on-demand"])
+                  },
+                ],
+                try(node_pool.requirements, []),
+              )
+            }
+          }
+          disruption = try(node_pool.disruption, {
+            consolidationPolicy = "WhenEmpty"
+            consolidateAfter    = "10s"
+          })
+          weight = try(node_pool.weight, 100)
+        },
+        try(node_pool.cpu_limit, null) != null || try(node_pool.memory_limit, null) != null ? {
+          limits = merge(
+            try(node_pool.cpu_limit, null) != null ? { cpu = node_pool.cpu_limit } : {},
+            try(node_pool.memory_limit, null) != null ? { memory = node_pool.memory_limit } : {},
+          )
+        } : {},
+        try(node_pool.extra_spec, {}),
+      )
+    }
+  }
 }
 
 # 为 karpenter role 创建 access entry， 否则无法访问 apiServer 注册节点到 k8s 上
@@ -73,38 +217,16 @@ resource "aws_eks_access_entry" "karpenter" {
 
 # EC2NodeClass
 resource "kubectl_manifest" "node_class" {
-  yaml_body = templatefile("${path.module}/manifests/node-class.yaml", {
-    name               = local.node_class_name
-    ami_alias          = local.node_ami_alias
-    iam_role           = var.iam_role_name
-    node_subnet_id_map = jsonencode([for id in var.eks_subnet_ids : { "id" = id }])
-    node_sg_id_map     = jsonencode([for id in var.node_sg_ids : { "id" = id }])
-    tags               = jsonencode(local.tags)
-    ssh_public_key     = data.aws_key_pair.ssh_key.public_key
-  })
+  yaml_body         = yamlencode(local.node_class_manifest)
   wait_for_rollout  = false
   force_new         = true
   server_side_apply = true
-
-  lifecycle {
-    ignore_changes = [
-      yaml_body
-    ]
-  }
 }
 
 # NodePool
 resource "kubectl_manifest" "node_pool" {
-  for_each = var.node_pools
-  yaml_body = templatefile("${path.module}/manifests/node-pool.yaml", {
-    name            = each.key
-    node_class_name = local.node_class_name
-    labels          = jsonencode(each.value.labels)
-    taints          = jsonencode([for k, v in each.value.taints : { key = k, value = v, effect = "NoSchedule" }])
-    instance_types  = jsonencode(each.value.instance_types)
-    cpu_limit       = each.value.cpu_limit
-    memory_limit    = each.value.memory_limit
-  })
+  for_each         = var.node_pools
+  yaml_body        = yamlencode(local.node_pool_manifests[each.key])
   wait_for_rollout = false
   force_new        = true
 
@@ -112,12 +234,6 @@ resource "kubectl_manifest" "node_pool" {
     kubectl_manifest.node_class,
     aws_eks_access_entry.karpenter,
   ]
-
-  lifecycle {
-    ignore_changes = [
-      yaml_body
-    ]
-  }
 }
 
 output "public_key" {

@@ -4,8 +4,9 @@ resource "aws_route_table" "example" {
   dynamic "route" {
     for_each = var.routes
     content {
-      cidr_block = route.value.cidr_block
-      gateway_id = route.value.gateway_id
+      cidr_block     = route.value.cidr_block
+      gateway_id     = try(route.value.gateway_id, null)
+      nat_gateway_id = try(route.value.nat_gateway_id, null)
     }
   }
 
@@ -18,18 +19,32 @@ resource "aws_route_table" "example" {
 ############################### 变量 ###############################
 variable "vpc_id" {
   description = "vpc ID"
+  type        = string
 }
 
 variable "routes" {
   description = "路由规则"
   type = list(object({
-    cidr_block = string
-    gateway_id = string
+    cidr_block     = string
+    gateway_id     = optional(string)
+    nat_gateway_id = optional(string)
   }))
+
+  validation {
+    condition = alltrue([
+      for route in var.routes :
+      length([
+        for target in [try(route.gateway_id, null), try(route.nat_gateway_id, null)] :
+        target if target != null && target != ""
+      ]) == 1
+    ])
+    error_message = "Each route must set exactly one target: gateway_id or nat_gateway_id."
+  }
 }
 
 variable "route_table_name" {
   description = "路由表名称"
+  type        = string
 }
 
 ########################### 路由表输出 #################################3

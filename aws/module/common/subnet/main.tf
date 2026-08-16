@@ -1,37 +1,73 @@
-resource "aws_subnet" "subnet" {
-  count                   = length(var.azs)
-  vpc_id                  = var.vpc_id
-  cidr_block              = var.subnet_cidr_blocks[count.index]
-  availability_zone       = element(var.azs, count.index % length(var.azs))
-  map_public_ip_on_launch = var.map_public_ip_on_launch
-
-  tags = {
-    Name = "${var.subnet_names[count.index]}-${var.azs[count.index % length(var.azs)]}"
+locals {
+  subnet_map = {
+    for subnet in var.subnets : subnet.key => subnet
   }
 }
 
-##################### 变量 ###################
-variable "azs" {
-  description = "可用区选择"
+resource "aws_subnet" "subnet" {
+  for_each                = local.subnet_map
+  vpc_id                  = var.vpc_id
+  cidr_block              = each.value.cidr
+  availability_zone       = each.value.availability_zone
+  map_public_ip_on_launch = each.value.map_public_ip_on_launch
+
+  tags = merge(
+    var.tags,
+    each.value.tags,
+    {
+      Name = each.value.name
+    },
+  )
 }
 
+##################### 变量 ###################
 variable "vpc_id" {
   description = "vpc ID 选择"
+  type        = string
 }
 
-variable "subnet_cidr_blocks" {
-  description = "子网网段选择"
+variable "subnets" {
+  description = "子网定义"
+  type = list(object({
+    key                     = string
+    name                    = string
+    cidr                    = string
+    availability_zone       = string
+    map_public_ip_on_launch = bool
+    tags                    = optional(map(string), {})
+  }))
+
+  validation {
+    condition     = length(var.subnets) > 0
+    error_message = "At least one subnet is required."
+  }
+
+  validation {
+    condition = alltrue([
+      for subnet in var.subnets : trimspace(subnet.key) != ""
+    ])
+    error_message = "Each subnet key must not be empty."
+  }
+
+  validation {
+    condition     = length(distinct([for subnet in var.subnets : subnet.key])) == length(var.subnets)
+    error_message = "Each subnet key must be unique."
+  }
 }
 
-variable "subnet_names" {
-  description = "子网名称"
-}
-
-variable "map_public_ip_on_launch" {
-  description = "子网类型是否开启公网IP"
+variable "tags" {
+  description = "Tags to add to all subnets"
+  type        = map(string)
+  default     = {}
 }
 
 ###################### 输出信息 ######################
 output "subnet_ids" {
-  value = aws_subnet.subnet[*].id
+  value = [for subnet in var.subnets : aws_subnet.subnet[subnet.key].id]
+}
+
+output "subnet_id_map" {
+  value = {
+    for key, subnet in aws_subnet.subnet : key => subnet.id
+  }
 }

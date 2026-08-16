@@ -1,8 +1,12 @@
 resource "aws_internet_gateway" "gw" {
   vpc_id = var.vpc_id
-  tags = {
-    Name = var.gateway_name
-  }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = var.gateway_name
+    },
+  )
 }
 
 resource "aws_route" "gateway_route" {
@@ -15,19 +19,29 @@ resource "aws_route" "gateway_route" {
 
 variable "vpc_id" {
   description = "vpc ID"
+  type        = string
 }
 
 variable "gateway_name" {
   description = "互联网网关名称"
+  type        = string
   default     = "prod-ec2-gateway"
 }
 
 variable "route_table_id" {
   description = "默认路由表ID"
+  type        = string
 }
 
 variable "destination_cidr_block" {
   description = "源地址"
+  type        = string
+}
+
+variable "tags" {
+  description = "Tags to add to internet gateway resources"
+  type        = map(string)
+  default     = {}
 }
 
 ################################ 输出信息 ###############################3
