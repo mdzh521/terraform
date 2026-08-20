@@ -1,0 +1,101 @@
+# AWS AK/SK 不建议直接写在这个文件里。
+# 当前项目沿用之前 EKS 的方式，通过环境变量传入：
+#   export TF_VAR_aws_access_key="..."
+#   export TF_VAR_aws_secret_key="..."
+
+# RDS 所在 region，需要和源 Aurora 集群 nebux 保持一致。
+aws_region = "ap-east-1"
+
+# 读取 network 环境的本地 state，从里面拿新 VPC、mysql 子网、k8s 子网网段。
+network_state_path = "../network/terraform.tfstate"
+
+# db 表示目标 Aurora 放在哪组子网里；默认使用 network 里的 mysql 私有子网。
+# k8s 表示 RDS 安全组允许哪个网段访问；默认只允许 EKS 节点子网访问 3306。
+# 不要在这里加 ops/lb/nat 等其它网段，除非明确需要这些机器直连数据库。
+network_subnet_groups = {
+  db  = "mysql"
+  k8s = "k8s"
+}
+
+# 统一资源标签，会打到 RDS cluster、instance、subnet group、安全组等资源上。
+tags = {
+  platform = "aws-hk"
+  owner    = "ops"
+  project  = "saas"
+}
+
+rds_config = {
+  # 目标 Aurora cluster 名称。apply 后会生成新的 writer/reader endpoint。
+  cluster_identifier = "nebux-otc-new"
+
+  # 源 Aurora cluster 名称。Terraform 会先读取这个源集群，再基于它做 clone。
+  source_cluster_identifier = "nebux"
+
+  # 目标集群引擎配置，保持和源库一致。
+  engine                     = "aurora-mysql"
+  engine_mode                = "provisioned"
+  engine_version             = "8.0.mysql_aurora.3.10.3"
+  port                       = 3306
+  db_cluster_parameter_group = "default.aurora-mysql8.0"
+
+  # 存储加密配置。这里复用源 Aurora 当前的 KMS key。
+  # 如果目标 VPC/账号/权限策略后续调整，需要确认这个 key 允许 RDS 使用。
+  storage_encrypted = true
+  kms_key_id        = "arn:aws:kms:ap-east-1:380524635782:key/311d2ca1-bfef-4527-8f58-a3ee774a2d45"
+
+  # 备份和维护窗口，按源库当前配置保持一致。
+  backup_retention_period      = 1
+  preferred_backup_window      = "13:04-13:34"
+  preferred_maintenance_window = "tue:12:16-tue:12:46"
+
+  # 防止误删目标 RDS。后续如果要 terraform destroy，需要先改成 false。
+  deletion_protection   = true
+  copy_tags_to_snapshot = true
+
+  # CloudWatch 日志导出，保持和源库一致。
+  cloudwatch_logs_exports = ["audit", "error", "slowquery"]
+
+  # Aurora 跨 VPC clone 配置。
+  # copy-on-write 创建速度快，不会把 112G 数据全量复制一遍。
+  # use_latest_restorable_time=true 表示克隆到源库当前可恢复的最新时间点。
+  # 如果正式迁移，需要先停应用写入，再等 LatestRestorableTime 追上停写时间后 apply。
+  restore_type               = "copy-on-write"
+  use_latest_restorable_time = true
+
+  # Serverless v2 容量范围。因为下面有 db.serverless 实例，所以这里必须配置。
+  # max_capacity 越大，峰值性能越高，费用上限也越高。
+  serverlessv2_scaling_configuration = {
+    min_capacity = 0
+    max_capacity = 16
+  }
+
+  # 目标 Aurora 实例列表。
+  # 当前按源库结构创建 2 个实例：一个 serverless，一个 db.r5.large。
+  # publicly_accessible=false 表示不暴露公网，只允许 VPC 内 k8s 节点网段访问。
+  instances = {
+    serverless = {
+      identifier              = "nebux-otc-new-serverless"
+      instance_class          = "db.serverless"
+      availability_zone       = "ap-east-1b"
+      publicly_accessible     = false
+      db_parameter_group_name = "default.aurora-mysql8.0"
+
+      # Enhanced Monitoring。源库当前使用这个 IAM role，目标实例沿用它。
+      monitoring_interval          = 60
+      monitoring_role_arn          = "arn:aws:iam::380524635782:role/rds-monitoring-role"
+      performance_insights_enabled = true
+    }
+    provisioned = {
+      identifier              = "nebux-otc-new-ap-east-1a"
+      instance_class          = "db.r5.large"
+      availability_zone       = "ap-east-1a"
+      publicly_accessible     = false
+      db_parameter_group_name = "default.aurora-mysql8.0"
+
+      # Enhanced Monitoring。源库当前使用这个 IAM role，目标实例沿用它。
+      monitoring_interval          = 60
+      monitoring_role_arn          = "arn:aws:iam::380524635782:role/rds-monitoring-role"
+      performance_insights_enabled = true
+    }
+  }
+}
