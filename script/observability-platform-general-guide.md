@@ -808,6 +808,16 @@ unset TG_BOT_TOKEN TG_CHAT_ID
 
 ### 9.3 Alertmanager 路由与模板
 
+推荐直接使用仓库中的可复用模板：
+
+```text
+/Users/alex/ops/terraform/script/observability/telegram-alertmanager-values.yaml
+```
+
+新版模板采用“状态标题 → 分组摘要 → 触发对象 → 恢复对象 → 处理建议”的顺序，使用纯文本渲染，避免告警标签中的 Markdown/HTML 字符导致 Telegram 拒绝消息。它还将 Critical 和 Warning 的重复通知周期分开，并按集群、命名空间、告警名、服务和实例分组。
+
+部署前必须将模板中的 `<LOCAL_TIMEZONE>` 替换为实际时区，例如 `Asia/Kuala_Lumpur`。如果你的告警没有 `cluster`、`service` 或 `instance` 标签，模板会自动跳过对应字段，不会输出空的标签行。
+
 ```yaml
 alertmanager:
   alertmanagerSpec:

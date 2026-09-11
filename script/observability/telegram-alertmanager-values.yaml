@@ -1,0 +1,121 @@
+# Alertmanager Telegram 通知模板
+# 时区使用 Asia/Kuala_Lumpur，并通过 Secret 提供 bot-token/chat-id。
+# 该模板故意不启用 Markdown/HTML，避免告警标签中的特殊字符破坏 Telegram 消息。
+
+alertmanager:
+  alertmanagerSpec:
+    secrets:
+      - alertmanager-telegram
+
+  config:
+    global:
+      resolve_timeout: 5m
+
+    route:
+      # 按场景分组，避免同一对象的多条告警重复刷屏。
+      group_by: [cluster, namespace, alertname, service, instance]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 6h
+      receiver: telegram
+      routes:
+        - receiver: 'null'
+          matchers:
+            - alertname =~ "Watchdog|InfoInhibitor|KubeSchedulerDown|KubeControllerManagerDown"
+        - receiver: telegram
+          matchers:
+            - severity = critical
+          repeat_interval: 2h
+        - receiver: telegram
+          matchers:
+            - severity = warning
+          repeat_interval: 6h
+
+    receivers:
+      - name: 'null'
+
+      - name: telegram
+        telegram_configs:
+          - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot-token
+            chat_id_file: /etc/alertmanager/secrets/alertmanager-telegram/chat-id
+            send_resolved: true
+            parse_mode: ''
+            message: |-
+              {{ if gt (len .Alerts.Firing) 0 -}}
+              {{- if eq .CommonLabels.severity "critical" }}🔴 严重告警{{ else }}🟠 告警通知{{ end }}
+              {{- else }}🟢 告警恢复{{ end }}
+              ━━━━━━━━━━━━━━━━━━
+              {{ with .CommonLabels.alertname }}📌 {{ . }}{{ end }}
+              {{ with .CommonLabels.cluster }}☸ 集群：{{ . }}{{ end }}
+              {{ with .CommonLabels.namespace }}📦 命名空间：{{ . }}{{ end }}
+              {{ with .CommonLabels.service }}🔧 服务：{{ . }}{{ end }}
+              📊 当前批次：触发 {{ len .Alerts.Firing }} 条，恢复 {{ len .Alerts.Resolved }} 条
+
+              {{ range .Alerts.Firing -}}
+              {{ with .Labels.instance }}🖥 实例：{{ . }}{{ end }}
+              {{ with .Labels.host_ip }}🌐 地址：{{ . }}{{ end }}
+              {{ with .Labels.node }}🧱 节点：{{ . }}{{ end }}
+              {{ with .Labels.pod }}📦 Pod：{{ . }}{{ end }}
+              {{ with .Labels.container }}▣ 容器：{{ . }}{{ end }}
+              {{ with .Labels.service }}🔧 服务：{{ . }}{{ end }}
+              {{ with .Labels.mountpoint }}💾 挂载点：{{ . }}{{ end }}
+              {{ with .Annotations.summary }}⚠ 摘要：{{ . }}{{ end }}
+              {{ with .Annotations.description }}📝 详情：{{ . }}{{ end }}
+              ⏱ 开始：{{ date "2006-01-02 15:04:05" (tz "Asia/Kuala_Lumpur" .StartsAt) }}
+              ⌛ 持续：{{ .StartsAt | since | humanizeDuration }}
+              ──────────────────
+              {{ end -}}
+
+              {{ range .Alerts.Resolved -}}
+              {{ with .Labels.instance }}🖥 实例：{{ . }}{{ end }}
+              {{ with .Labels.node }}🧱 节点：{{ . }}{{ end }}
+              {{ with .Labels.pod }}📦 Pod：{{ . }}{{ end }}
+              {{ with .Annotations.summary }}✅ {{ . }}{{ end }}
+              🕒 恢复：{{ date "2006-01-02 15:04:05" (tz "Asia/Kuala_Lumpur" .EndsAt) }}
+              ──────────────────
+              {{ end -}}
+
+              {{ if gt (len .Alerts.Firing) 0 -}}
+              🛠 建议动作
+              {{ if match "^NSTChain" .CommonLabels.alertname -}}
+              1. 在 NST Chain RPC Dashboard 核对错误率、P95 和区块高度
+              2. 检查异常上游的 HTTP、WebSocket、同步状态和服务日志
+              3. 确认代理到各上游的网络、负载均衡和缓存后端状态
+              {{- else if match "^Redis" .CommonLabels.alertname -}}
+              1. 检查 Redis 主从角色、复制链路和 6379 端口
+              2. 检查 Redis 日志、内存和持久化状态
+              3. 在 Redis Dashboard 核对告警前后的趋势
+              {{- else if match "^ExternalHost" .CommonLabels.alertname -}}
+              1. 检查主机网络、Node Exporter 和系统日志
+              2. 核对 CPU、内存、磁盘及系统压力
+              3. 在非 Kubernetes 主机 Dashboard 定位异常时间点
+              {{- else -}}
+              1. 查看相关 Pod、事件、容器日志和最近发布记录
+              2. 在 Grafana 核对告警前后 15 分钟的指标趋势
+              3. Critical 告警优先确认业务影响和依赖服务状态
+              {{- end }}
+              {{- else }}
+              ℹ️ 指标已恢复；请确认恢复期间没有遗留错误、重启或数据影响。
+              {{- end }}
+
+              {{ with .ExternalURL }}🔗 Alertmanager：{{ . }}{{ end }}
+
+    inhibit_rules:
+      - source_matchers: ['severity = critical']
+        target_matchers: ['severity =~ warning|info']
+        equal: [cluster, namespace, alertname, instance]
+      - source_matchers: ['alertname = NSTChainRPCErrorRateCritical']
+        target_matchers: ['alertname = NSTChainRPCErrorRateHigh']
+        equal: [job, instance]
+      - source_matchers: ['alertname = NSTChainRPCP95LatencyCritical']
+        target_matchers: ['alertname = NSTChainRPCP95LatencyHigh']
+        equal: [job, instance]
+      - source_matchers: ['alertname = NSTChainUpstreamBlockLagCritical']
+        target_matchers: ['alertname = NSTChainUpstreamBlockLagHigh']
+        equal: [job, instance, upstream]
+      - source_matchers: ['alertname = NSTChainAllUpstreamsHTTPDown']
+        target_matchers: ['alertname =~ "NSTChainUpstreamHTTPDown|NSTChainUpstreamWebSocketDown"']
+        equal: [job, instance]
+      - source_matchers: ['severity = warning']
+        target_matchers: ['severity = info']
+        equal: [cluster, namespace, alertname, instance]
