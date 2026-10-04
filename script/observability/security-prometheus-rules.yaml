@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: security-tools-alerts
+  namespace: logging
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: security-tools
+      rules:
+        - alert: FalcoDaemonNotReady
+          expr: kube_daemonset_status_number_ready{namespace="security",daemonset="falco"} < kube_daemonset_status_desired_number_scheduled{namespace="security",daemonset="falco"}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Falco 未覆盖全部节点
+            description: Falco DaemonSet 的 Ready 节点数低于期望值。
+        - alert: KyvernoPolicyViolationsDetected
+          expr: sum(increase(kyverno_policy_results_total{rule_result="fail"}[15m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: 检测到 Kyverno 策略违规
+            description: 最近 15 分钟内检测到策略违规，请查看 Kyverno PolicyReport。
+        - alert: TrivyCriticalVulnerabilities
+          expr: sum(trivy_operator_vulnerabilities{severity="CRITICAL"}) > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: 检测到 Critical 镜像漏洞
+            description: Trivy Operator 报告中存在 Critical 级别漏洞。

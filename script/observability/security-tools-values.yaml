@@ -1,0 +1,61 @@
+# 初次上线采用“检测/审计优先”策略：不自动阻断现有业务。
+
+kyverno:
+  admissionController:
+    replicas: 2
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: prometheus
+  backgroundController:
+    replicas: 1
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: prometheus
+  cleanupController:
+    replicas: 1
+  reportsController:
+    replicas: 1
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: prometheus
+
+trivy-operator:
+  operator:
+    replicas: 1
+    scanJobsConcurrentLimit: 2
+    scanJobTimeout: 10m
+    scannerReportTTL: 168h
+    cacheReportTTL: 168h
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+falco:
+  driver:
+    kind: modern_ebpf
+    modernEbpf:
+      leastPrivileged: true
+  serviceMonitor:
+    create: true
+    labels:
+      release: prometheus
+  falcosidekick:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi

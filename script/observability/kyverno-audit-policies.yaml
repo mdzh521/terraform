@@ -1,0 +1,74 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: security-baseline-audit
+  annotations:
+    policies.kyverno.io/title: Security baseline audit
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/severity: medium
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: disallow-privileged
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, security, logging, kuboard]
+      validate:
+        message: "Privileged containers should not be used."
+        pattern:
+          spec:
+            =(containers):
+              - =(securityContext):
+                  =(privileged): "false"
+    - name: disallow-host-namespaces
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, security, logging, kuboard]
+      validate:
+        message: "Host network, PID, and IPC namespaces should not be used."
+        pattern:
+          spec:
+            =(hostNetwork): "false"
+            =(hostPID): "false"
+            =(hostIPC): "false"
+    - name: disallow-hostpath
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, security, logging, kuboard]
+      validate:
+        message: "HostPath volumes should not be used by application workloads."
+        pattern:
+          spec:
+            =(volumes):
+              - X(hostPath): "*"
+    - name: require-image-tag
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, security, logging, kuboard]
+      validate:
+        message: "Container images must use an explicit tag other than latest."
+        pattern:
+          spec:
+            =(containers):
+              - image: "!*:latest"

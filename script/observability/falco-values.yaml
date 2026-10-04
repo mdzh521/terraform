@@ -1,0 +1,22 @@
+driver:
+  kind: modern_ebpf
+  modernEbpf:
+    leastPrivileged: true
+serviceMonitor:
+  create: true
+  labels:
+    release: prometheus
+falcosidekick:
+  enabled: false
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: heavy-load
+    effect: NoSchedule
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi

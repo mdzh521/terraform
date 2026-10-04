@@ -1,0 +1,14 @@
+{
+  "title": "EKS Security Overview",
+  "uid": "eks-security-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Falco Ready Nodes", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "kube_daemonset_status_number_ready{namespace=\"security\",daemonset=\"falco\"}", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 8}]}}}},
+    {"id": 2, "type": "stat", "title": "Critical Vulnerabilities", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "targets": [{"expr": "sum(trivy_operator_vulnerabilities{severity=\"CRITICAL\"})", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}},
+    {"id": 3, "type": "timeseries", "title": "Kyverno Policy Violations", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "sum by (policy) (rate(kyverno_policy_results_total{rule_result=\"fail\"}[5m]))", "legendFormat": "{{policy}}", "refId": "A"}]},
+    {"id": 4, "type": "table", "title": "Trivy Vulnerabilities by Severity", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "sum by (severity) (trivy_operator_vulnerabilities)", "format": "table", "instant": true, "refId": "A"}]}
+  ]
+}

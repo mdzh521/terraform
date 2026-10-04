@@ -1,0 +1,15 @@
+loki:
+  image:
+    tag: 3.6.11
+  rulerConfig:
+    alertmanager_url: http://prometheus-kube-prometheus-alertmanager.logging.svc.cluster.local:9093
+    enable_api: true
+    rule_path: /tmp/rules-scratch
+    storage:
+      type: local
+      local:
+        directory: /rules
+
+sidecar:
+  rules:
+    folderAnnotation: loki_rule_folder

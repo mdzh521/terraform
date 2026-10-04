@@ -1,0 +1,24 @@
+operator:
+  replicas: 1
+  scanJobsConcurrentLimit: 2
+  scanJobTimeout: 10m
+  scannerReportTTL: 168h
+  cacheReportTTL: 168h
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+nodeCollector:
+  useNodeSelector: false
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: heavy-load
+      effect: NoSchedule
