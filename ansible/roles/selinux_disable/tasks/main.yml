@@ -1,0 +1,26 @@
+---
+- name: Reject unsupported SELinux changes
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'RedHat' or (ansible_facts.selinux | default({})).status | default('disabled') != 'enabled'
+    fail_msg: "SELinux is enabled on this non-RedHat host; add an OS-specific SELinux implementation before changing it."
+
+- name: Install SELinux Python bindings
+  ansible.builtin.package:
+    name: python3-libselinux
+    state: present
+  when: ansible_os_family == 'RedHat'
+
+- name: Set SELinux disabled persistently
+  ansible.posix.selinux:
+    state: disabled
+    update_kernel_param: true
+  register: ansible_selinux_result
+  when: ansible_os_family == 'RedHat'
+
+- name: Reboot when SELinux configuration requires it
+  ansible.builtin.reboot:
+    reboot_timeout: 900
+  when:
+    - ansible_os_family == 'RedHat'
+    - (ansible_selinux_result | default({})).reboot_required | default(false)

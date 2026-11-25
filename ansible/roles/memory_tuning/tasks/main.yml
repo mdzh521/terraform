@@ -1,0 +1,9 @@
+---
+- name: Apply memory and VM parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value | string }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/92-ops-memory.conf
+    reload: true
+  loop: "{{ ansible_initialization.memory_parameters | default({}) | dict2items }}"

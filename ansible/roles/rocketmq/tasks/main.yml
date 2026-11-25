@@ -1,0 +1,54 @@
+---
+- name: Validate RocketMQ topology
+  ansible.builtin.assert:
+    that:
+      - rocketmq_mode in ['standalone', 'cluster']
+      - (rocketmq_mode != 'standalone') or (groups['rocketmq'] | length == 1)
+      - (rocketmq_mode != 'cluster') or (groups['rocketmq'] | length >= 2)
+    fail_msg: "RocketMQ standalone needs one host; cluster mode needs at least two hosts."
+
+- name: Create RocketMQ directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0750"
+  loop:
+    - "{{ rocketmq_data_dir }}/store"
+    - "{{ rocketmq_data_dir }}/logs"
+    - "{{ rocketmq_data_dir }}/conf"
+
+- name: Install and start Docker
+  ansible.builtin.include_role:
+    name: docker
+
+- name: Configure RocketMQ broker
+  ansible.builtin.template:
+    src: broker.conf.j2
+    dest: "{{ rocketmq_data_dir }}/conf/broker.conf"
+    mode: "0640"
+
+- name: Start RocketMQ NameServer
+  community.docker.docker_container:
+    name: rocketmq-namesrv
+    image: "{{ rocketmq_image }}"
+    command: ["sh", "mqnamesrv"]
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ rocketmq_namesrv_port }}:9876"
+    volumes:
+      - "{{ rocketmq_data_dir }}/logs:/home/rocketmq/logs"
+
+- name: Start RocketMQ Broker
+  community.docker.docker_container:
+    name: rocketmq-broker
+    image: "{{ rocketmq_image }}"
+    command: ["sh", "mqbroker", "-c", "{{ rocketmq_home }}/conf/broker.conf"]
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ rocketmq_broker_port }}:10911"
+    volumes:
+      - "{{ rocketmq_data_dir }}/logs:/home/rocketmq/logs"
+      - "{{ rocketmq_data_dir }}/store:/home/rocketmq/store"
+      - "{{ rocketmq_data_dir }}/conf/broker.conf:{{ rocketmq_home }}/conf/broker.conf:ro"

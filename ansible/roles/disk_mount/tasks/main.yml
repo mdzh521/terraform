@@ -1,0 +1,177 @@
+---
+- name: Require at least one configured data disk
+  ansible.builtin.assert:
+    that:
+      - ansible_initialization.disks is defined
+      - ansible_initialization.disks is sequence
+      - ansible_initialization.disks is not string
+      - ansible_initialization.disks | length > 0
+    fail_msg: "disk_mount is enabled but no data disks are configured."
+
+- name: Validate each data disk declaration
+  ansible.builtin.assert:
+    that:
+      - item.device is match('^/dev/')
+      - item.mount_path is match('^/')
+      - item.fstype in ['xfs', 'ext4']
+      - item.format_if_empty is defined and item.format_if_empty is boolean
+    fail_msg: "Each disk needs an explicit /dev device, absolute mount_path, xfs/ext4 fstype, and format_if_empty choice."
+  loop: "{{ ansible_initialization.disks | default([]) }}"
+  loop_control:
+    label: "{{ item.device | default('undefined') }}"
+
+- name: Ensure declared data devices exist
+  ansible.builtin.stat:
+    path: "{{ item.device }}"
+  register: disk_device_stats
+  loop: "{{ ansible_initialization.disks | default([]) }}"
+  loop_control:
+    label: "{{ item.device }}"
+
+- name: Refuse missing or non-block data devices
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isblk
+    fail_msg: "Configured data device {{ item.item.device }} is missing or is not a block device. Verify the cloud device mapping in HCL."
+  loop: "{{ disk_device_stats.results }}"
+  loop_control:
+    label: "{{ item.item.device }}"
+
+- name: Inspect existing filesystem signature
+  ansible.builtin.command:
+    argv:
+      - blkid
+      - -p
+      - -s
+      - TYPE
+      - -o
+      - value
+      - "{{ item.device }}"
+  register: disk_fs_probe
+  changed_when: false
+  failed_when: disk_fs_probe.rc not in [0, 2]
+  loop: "{{ ansible_initialization.disks | default([]) }}"
+  loop_control:
+    label: "{{ item.device }}"
+
+- name: Refuse a filesystem that differs from the requested type
+  ansible.builtin.assert:
+    that:
+      - item.stdout | trim == '' or item.stdout | trim == item.item.fstype
+    fail_msg: "{{ item.item.device }} already contains {{ item.stdout | trim }}; expected {{ item.item.fstype }}. No formatting was attempted."
+  loop: "{{ disk_fs_probe.results }}"
+  loop_control:
+    label: "{{ item.item.device }}"
+
+- name: Check for unrecognized signatures before formatting
+  ansible.builtin.command:
+    argv:
+      - wipefs
+      - --no-act
+      - --noheadings
+      - --output
+      - TYPE
+      - "{{ item.device }}"
+  register: disk_signature_probe
+  changed_when: false
+  loop: "{{ ansible_initialization.disks | default([]) }}"
+  when: disk_fs_probe.results[ansible_loop.index0].stdout | trim == ''
+  loop_control:
+    label: "{{ item.device }}"
+    extended: true
+
+- name: Ensure unformatted devices are explicitly approved for formatting
+  ansible.builtin.assert:
+    that:
+      - item.item.format_if_empty | bool
+      - item.stdout | trim == ''
+    fail_msg: "{{ item.item.device }} has no recognized filesystem; formatting requires format_if_empty=true and no existing disk signatures."
+  loop: "{{ disk_signature_probe.results | default([]) }}"
+  when: not (item.skipped | default(false))
+  loop_control:
+    label: "{{ item.item.device }}"
+
+- name: Report approved empty disks that will be formatted
+  ansible.builtin.debug:
+    msg: "Formatting explicitly approved empty data disk {{ item.item.device }} as {{ item.item.fstype }}."
+  loop: "{{ disk_fs_probe.results }}"
+  when: item.stdout | trim == ''
+  loop_control:
+    label: "{{ item.item.device }}"
+
+- name: Install filesystem utilities
+  ansible.builtin.package:
+    name: "{{ 'xfsprogs' if item.item.fstype == 'xfs' else 'e2fsprogs' }}"
+    state: present
+  loop: "{{ disk_fs_probe.results }}"
+  when: item.stdout | trim == ''
+  loop_control:
+    label: "{{ item.item.fstype }}"
+
+- name: Create filesystems on approved empty data disks
+  community.general.filesystem:
+    dev: "{{ item.item.device }}"
+    fstype: "{{ item.item.fstype }}"
+    force: false
+  loop: "{{ disk_fs_probe.results }}"
+  when: item.stdout | trim == ''
+  loop_control:
+    label: "{{ item.item.device }}"
+
+- name: Read data disk UUIDs
+  ansible.builtin.command:
+    argv:
+      - blkid
+      - -s
+      - UUID
+      - -o
+      - value
+      - "{{ item.device }}"
+  register: disk_uuid_probe
+  changed_when: false
+  loop: "{{ ansible_initialization.disks | default([]) }}"
+  loop_control:
+    label: "{{ item.device }}"
+
+- name: Ensure filesystems have UUIDs
+  ansible.builtin.assert:
+    that:
+      - item.stdout | trim | length > 0
+    fail_msg: "Could not read a filesystem UUID from {{ item.item.device }}."
+  loop: "{{ disk_uuid_probe.results }}"
+  loop_control:
+    label: "{{ item.item.device }}"
+
+- name: Refuse mount points already used by a different source
+  ansible.builtin.assert:
+    that:
+      - (ansible_mounts | selectattr('mount', 'equalto', item.item.mount_path) | map(attribute='device') | list | first | default(item.item.device)) in [item.item.device, item.stdout | trim, 'UUID=' ~ item.stdout | trim]
+    fail_msg: "{{ item.item.mount_path }} is already mounted from a different device."
+  loop: "{{ disk_uuid_probe.results }}"
+  loop_control:
+    label: "{{ item.item.mount_path }}"
+
+- name: Create data disk mount points
+  ansible.builtin.file:
+    path: "{{ item.item.mount_path }}"
+    state: directory
+    owner: "{{ item.item.owner | default(ansible_user) }}"
+    group: "{{ item.item.group | default(ansible_user) }}"
+    mode: "{{ item.item.mode | default('0750') }}"
+  loop: "{{ disk_uuid_probe.results }}"
+  loop_control:
+    label: "{{ item.item.mount_path }}"
+
+- name: Mount data disks and persist them in fstab
+  ansible.posix.mount:
+    path: "{{ item.item.mount_path }}"
+    src: "UUID={{ item.stdout | trim }}"
+    fstype: "{{ item.item.fstype }}"
+    opts: "{{ item.item.mount_options | default('defaults,noatime') }}"
+    dump: "{{ item.item.dump | default('0') }}"
+    passno: "{{ item.item.passno | default('2') }}"
+    state: mounted
+  loop: "{{ disk_uuid_probe.results }}"
+  loop_control:
+    label: "{{ item.item.mount_path }}"

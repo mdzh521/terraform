@@ -1,0 +1,17 @@
+---
+- name: Collect installed firewall services
+  ansible.builtin.service_facts:
+
+- name: Find firewall services available on this host
+  ansible.builtin.set_fact:
+    ansible_firewall_services_to_disable: >-
+      {{ ansible_firewall_service_names
+         | select('in', ansible_facts.services.keys() | map('regex_replace', '\\.service$', '') | list)
+         | list }}
+
+- name: Stop and disable detected firewall services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ ansible_firewall_services_to_disable }}"

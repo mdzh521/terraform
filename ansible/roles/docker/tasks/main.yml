@@ -1,0 +1,13 @@
+---
+- name: Install Docker Engine from the distribution repositories
+  ansible.builtin.package:
+    name:
+      - docker
+      - python3-docker
+    state: present
+
+- name: Start Docker Engine
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true

@@ -1,0 +1,43 @@
+---
+- name: Require a single node or a multi-node cluster
+  ansible.builtin.assert:
+    that:
+      - kafka_mode in ['standalone', 'cluster']
+      - (kafka_mode != 'standalone') or (groups['kafka'] | length == 1)
+      - (kafka_mode != 'cluster') or (groups['kafka'] | length >= 3)
+    fail_msg: "Kafka standalone needs one host; this KRaft layout needs at least three hosts for a cluster."
+
+- name: Create Kafka data directory
+  ansible.builtin.file:
+    path: "{{ kafka_data_dir }}"
+    state: directory
+    mode: "0750"
+    owner: "{{ ansible_user | default('root') }}"
+
+- name: Install and start Docker
+  ansible.builtin.include_role:
+    name: docker
+
+- name: Start Kafka in KRaft mode
+  community.docker.docker_container:
+    name: kafka
+    image: "{{ kafka_image }}"
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ kafka_port }}:9092"
+      - "{{ kafka_controller_port }}:9093"
+    volumes:
+      - "{{ kafka_data_dir }}:/var/lib/kafka/data"
+    env:
+      KAFKA_NODE_ID: "{{ (kafka_nodes.index(inventory_hostname) + 1) | string }}"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://{{ ansible_host }}:{{ kafka_port }}"
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "{% for node in kafka_nodes %}{{ loop.index }}@{{ hostvars[node].ansible_host }}:{{ kafka_controller_port }}{{ ',' if not loop.last else '' }}{% endfor %}"
+      KAFKA_CLUSTER_ID: "{{ kafka_cluster_id }}"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "{{ [3, kafka_nodes | length] | min | string }}"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "{{ [3, kafka_nodes | length] | min | string }}"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "{{ [2, kafka_nodes | length] | min | string }}"

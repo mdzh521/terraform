@@ -1,0 +1,12 @@
+brokerClusterName = {{ rocketmq_cluster_name | default('DefaultCluster') }}
+brokerName = {{ inventory_hostname }}
+brokerId = 0
+deleteWhen = 04
+fileReservedTime = 48
+brokerRole = ASYNC_MASTER
+flushDiskType = ASYNC_FLUSH
+listenPort = 10911
+brokerIP1 = {{ ansible_host }}
+namesrvAddr = {% for node in rocketmq_nodes %}{{ hostvars[node].ansible_host }}:{{ rocketmq_namesrv_port }}{% if not loop.last %};{% endif %}{% endfor %}
+storePathRootDir = /home/rocketmq/store
+storePathCommitLog = /home/rocketmq/store/commitlog

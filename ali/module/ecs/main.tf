@@ -8,16 +8,16 @@ resource "alicloud_instance" "ecs" {
   instance_type                 = var.instance_type
   vswitch_id                    = element(var.subnet_names, count.index % length(var.subnet_names))
   security_groups               = [var.security_group]
-  #key_name                      = var.key_name
-  system_disk_performance_level = "PL0"
-  system_disk_category          = "cloud_ssd"
-  system_disk_size              = 200
+  key_name                      = var.key_name
+  system_disk_performance_level = var.system_disk_performance_level
+  system_disk_category          = var.system_disk_category
+  system_disk_size              = var.system_disk_size
 
   data_disks {
-    category              = var.data_disk_category
-    size                  = var.data_disk_size
-    performance_level     = var.data_disk_level
-    delete_with_instance  = true
+    category             = var.data_disk_category
+    size                 = var.data_disk_size
+    performance_level    = var.data_disk_level
+    delete_with_instance = true
   }
 }
 
@@ -29,7 +29,7 @@ variable "service_name" {
 
 variable "subnet_names" {
   description = "子网列表"
-  type = list(string)
+  type        = list(string)
 }
 
 variable "vpc_id" {
@@ -59,25 +59,56 @@ variable "instance_type" {
 
 variable "security_group" {
   description = "安全组"
-  type = string
+  type        = string
 }
 
 variable "data_disk_category" {
   description = "磁盘规格类型"
-  type = string
+  type        = string
 }
 
 variable "data_disk_size" {
   description = "磁盘大小"
-  type = number
+  type        = number
 }
 
 variable "data_disk_level" {
   description = "数据盘规格"
-  type = string
+  type        = string
+}
+
+variable "system_disk_size" {
+  description = "System disk size in GiB"
+  type        = number
+  default     = 200
+}
+
+variable "system_disk_category" {
+  description = "Alibaba Cloud system disk category"
+  type        = string
+  default     = "cloud_ssd"
+}
+
+variable "system_disk_performance_level" {
+  description = "ESSD performance level"
+  type        = string
+  default     = "PL0"
+}
+
+variable "key_name" {
+  description = "Existing Alibaba Cloud key pair name"
+  type        = string
+  default     = null
 }
 
 ########################################## 主机信息 #######################################
 output "instance_ids" {
   value = alicloud_instance.ecs.*.id
+}
+
+output "instance_ip_name" {
+  value = {
+    for instance in alicloud_instance.ecs :
+    instance.instance_name => instance.private_ip
+  }
 }

@@ -1,0 +1,86 @@
+---
+# Host initialization is opt-in at the host level. Each role can also be
+# switched independently in the inventory-provided ansible_initialization map.
+ansible_initialization:
+  enabled: false
+  modules:
+    hostname: false
+    security_hardening: false
+    kernel_tuning: false
+    memory_tuning: false
+    firewall_disable: false
+    selinux_disable: false
+    disk_mount: false
+ansible_target_hostname: "{{ inventory_hostname }}"
+ansible_security_parameters:
+  kernel.randomize_va_space: "2"
+  kernel.kptr_restrict: "2"
+  kernel.dmesg_restrict: "1"
+  net.ipv4.conf.all.accept_redirects: "0"
+  net.ipv4.conf.default.accept_redirects: "0"
+  net.ipv4.conf.all.send_redirects: "0"
+  net.ipv4.conf.default.send_redirects: "0"
+  net.ipv4.conf.all.accept_source_route: "0"
+  net.ipv4.conf.default.accept_source_route: "0"
+  net.ipv4.tcp_syncookies: "1"
+ansible_firewall_service_names:
+  - firewalld
+  - ufw
+  - nftables
+  - iptables
+  - ip6tables
+
+mysql_enabled: false
+mysql_image: mysql:8.4
+mysql_port: 3306
+mysql_data_dir: /srv/mysql/data
+mysql_buffer_pool_percent: 70
+mysql_root_password: "{{ lookup('ansible.builtin.env', 'MYSQL_ROOT_PASSWORD') }}"
+
+redis_enabled: false
+redis_mode: standalone # standalone | replication | cluster
+redis_image: redis:7.4
+redis_port: 6379
+redis_data_dir: /srv/redis/data
+redis_password: "{{ lookup('ansible.builtin.env', 'REDIS_PASSWORD') }}"
+redis_cluster_replicas: 1
+redis_cluster_nodes: >-
+  {{ groups['redis_cluster'] | map('extract', hostvars, 'redis_announce_ip')
+     | map('regex_replace', '$', ':' ~ (redis_port | string)) | list }}
+
+kafka_enabled: false
+kafka_mode: standalone # standalone | cluster
+kafka_image: apache/kafka:3.9.0
+kafka_port: 9092
+kafka_controller_port: 9093
+kafka_cluster_id: MkU3OEVBNTcwNTJENDM2Qk
+kafka_data_dir: /srv/kafka/data
+kafka_nodes: "{{ groups['kafka'] | sort }}"
+
+rocketmq_enabled: false
+rocketmq_mode: standalone # standalone | cluster
+rocketmq_image: apache/rocketmq:5.3.2
+rocketmq_namesrv_port: 9876
+rocketmq_broker_port: 10911
+rocketmq_data_dir: /srv/rocketmq/data
+rocketmq_home: /home/rocketmq/rocketmq-5.3.2
+rocketmq_nodes: "{{ groups['rocketmq'] | sort }}"
+
+etcd_enabled: false
+etcd_mode: standalone # standalone | cluster
+etcd_image: quay.io/coreos/etcd:v3.5.17
+etcd_client_port: 2379
+etcd_peer_port: 2380
+etcd_data_dir: /srv/etcd/data
+etcd_nodes: "{{ groups['etcd'] | sort }}"
+
+rabbitmq_enabled: false
+rabbitmq_mode: standalone # standalone | cluster
+rabbitmq_image: rabbitmq:4.1-management
+rabbitmq_port: 5672
+rabbitmq_management_port: 15672
+rabbitmq_data_dir: /srv/rabbitmq/data
+rabbitmq_default_user: "{{ lookup('ansible.builtin.env', 'RABBITMQ_DEFAULT_USER') }}"
+rabbitmq_default_pass: "{{ lookup('ansible.builtin.env', 'RABBITMQ_DEFAULT_PASS') }}"
+rabbitmq_erlang_cookie: "{{ lookup('ansible.builtin.env', 'RABBITMQ_ERLANG_COOKIE') }}"
+rabbitmq_nodes: "{{ groups['rabbitmq'] | sort }}"

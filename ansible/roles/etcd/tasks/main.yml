@@ -1,0 +1,41 @@
+---
+- name: Validate etcd topology
+  ansible.builtin.assert:
+    that:
+      - etcd_mode in ['standalone', 'cluster']
+      - (etcd_mode != 'standalone') or (groups['etcd'] | length == 1)
+      - (etcd_mode != 'cluster') or (groups['etcd'] | length >= 3 and groups['etcd'] | length is odd)
+    fail_msg: "etcd standalone needs one host; cluster mode needs an odd number of at least three hosts."
+
+- name: Create etcd data directory
+  ansible.builtin.file:
+    path: "{{ etcd_data_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Install and start Docker
+  ansible.builtin.include_role:
+    name: docker
+
+- name: Run etcd
+  community.docker.docker_container:
+    name: etcd
+    image: "{{ etcd_image }}"
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ etcd_client_port }}:2379"
+      - "{{ etcd_peer_port }}:2380"
+    volumes:
+      - "{{ etcd_data_dir }}:/etcd-data"
+    command: >-
+      /usr/local/bin/etcd
+      --name={{ inventory_hostname }}
+      --data-dir=/etcd-data
+      --listen-client-urls=http://0.0.0.0:2379
+      --advertise-client-urls=http://{{ ansible_host }}:{{ etcd_client_port }}
+      --listen-peer-urls=http://0.0.0.0:2380
+      --initial-advertise-peer-urls=http://{{ ansible_host }}:{{ etcd_peer_port }}
+      --initial-cluster={% for node in etcd_nodes %}{{ node }}=http://{{ hostvars[node].ansible_host }}:{{ etcd_peer_port }}{{ ',' if not loop.last else '' }}{% endfor %}
+      --initial-cluster-state=new
+      --initial-cluster-token={{ etcd_cluster_token | default('otc-prod-etcd') }}

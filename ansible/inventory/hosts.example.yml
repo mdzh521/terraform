@@ -1,0 +1,40 @@
+---
+all:
+  children:
+    common:
+      hosts:
+        demo-host:
+          ansible_host: 192.0.2.10
+          ansible_target_hostname: demo-host
+          ansible_initialization:
+            enabled: false
+            modules:
+              hostname: false
+              security_hardening: false
+              kernel_tuning: false
+              memory_tuning: false
+              firewall_disable: false
+              selinux_disable: false
+              disk_mount: false
+    mysql:
+      hosts: {}
+    redis_standalone:
+      hosts: {}
+    redis_primary:
+      hosts: {}
+    redis_replicas:
+      hosts: {}
+    redis_cluster:
+      hosts: {}
+    kafka:
+      hosts: {}
+    rocketmq:
+      hosts: {}
+    etcd:
+      hosts: {}
+    rabbitmq:
+      hosts: {}
+  vars:
+    ansible_user: cloud-user
+    ansible_become: true
+    # Supply keys with ANSIBLE_PRIVATE_KEY_FILE; never commit private keys.

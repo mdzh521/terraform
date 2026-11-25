@@ -1,0 +1,72 @@
+---
+- name: Validate RabbitMQ topology and cookie
+  ansible.builtin.assert:
+    that:
+      - rabbitmq_mode in ['standalone', 'cluster']
+      - (rabbitmq_mode != 'standalone') or (groups['rabbitmq'] | length == 1)
+      - (rabbitmq_mode != 'cluster') or (groups['rabbitmq'] | length >= 3 and groups['rabbitmq'] | length is odd)
+      - rabbitmq_default_user | length > 0
+      - rabbitmq_default_pass | length >= 16
+      - rabbitmq_mode != 'cluster' or rabbitmq_erlang_cookie | length >= 20
+    fail_msg: "Set RABBITMQ_DEFAULT_USER/PASS (16+ char password); cluster mode also needs 3/5/7 nodes and RABBITMQ_ERLANG_COOKIE (20+ chars)."
+
+- name: Create RabbitMQ data directory
+  ansible.builtin.file:
+    path: "{{ rabbitmq_data_dir }}"
+    state: directory
+    mode: "0750"
+
+- name: Install and start Docker
+  ansible.builtin.include_role:
+    name: docker
+
+- name: Start RabbitMQ
+  community.docker.docker_container:
+    name: rabbitmq
+    image: "{{ rabbitmq_image }}"
+    hostname: "{{ inventory_hostname }}"
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ rabbitmq_port }}:5672"
+      - "{{ rabbitmq_management_port }}:15672"
+      - "4369:4369"
+      - "25672:25672"
+    etc_hosts: "{{ dict(rabbitmq_nodes | zip(rabbitmq_nodes | map('extract', hostvars, 'ansible_host'))) }}"
+    volumes:
+      - "{{ rabbitmq_data_dir }}:/var/lib/rabbitmq"
+    env:
+      RABBITMQ_NODENAME: "rabbit@{{ inventory_hostname }}"
+      RABBITMQ_ERLANG_COOKIE: "{{ rabbitmq_erlang_cookie }}"
+      RABBITMQ_DEFAULT_USER: "{{ rabbitmq_default_user }}"
+      RABBITMQ_DEFAULT_PASS: "{{ rabbitmq_default_pass }}"
+  no_log: true
+
+- name: Wait for RabbitMQ CLI
+  community.docker.docker_container_exec:
+    container: rabbitmq
+    command: rabbitmq-diagnostics -q ping
+  register: rabbitmq_ping
+  retries: 30
+  delay: 5
+  until: rabbitmq_ping.rc == 0
+
+- name: Read RabbitMQ cluster membership
+  community.docker.docker_container_exec:
+    container: rabbitmq
+    command: rabbitmqctl cluster_status
+  register: rabbitmq_cluster_status
+  changed_when: false
+  when: rabbitmq_mode == 'cluster'
+
+- name: Join non-seed nodes to the cluster
+  community.docker.docker_container_exec:
+    container: rabbitmq
+    command: "rabbitmqctl join_cluster rabbit@{{ rabbitmq_nodes[0] }}"
+  when:
+    - rabbitmq_mode == 'cluster'
+    - inventory_hostname != rabbitmq_nodes[0]
+    - rabbitmq_nodes[0] not in rabbitmq_cluster_status.stdout
+  register: rabbitmq_join
+  failed_when: rabbitmq_join.rc != 0 and 'already_member' not in (rabbitmq_join.stderr | default(''))
+  throttle: 1

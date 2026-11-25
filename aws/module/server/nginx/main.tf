@@ -1,25 +1,25 @@
 resource "aws_instance" "ec2_instance" {
-  count = var.ec2_instance_count
+  count         = var.ec2_instance_count
   instance_type = var.instance_type
-  subnet_id = element(var.subnet_names, count.index % length(var.subnet_names))
+  subnet_id     = element(var.subnet_names, count.index % length(var.subnet_names))
 
   vpc_security_group_ids = [var.security_group]
-  
+
   key_name = var.key
-  ami = var.image_id
+  ami      = var.image_id
   root_block_device {
-    volume_type = "gp3"
-    volume_size = 100
+    volume_type           = var.root_disk_category
+    volume_size           = var.root_disk_size
     delete_on_termination = true
   }
 
   ebs_block_device {
-    device_name = "/dev/sdb"
-    volume_type = "gp3"
-    volume_size = var.data_disk_size
+    device_name           = "/dev/sdb"
+    volume_type           = var.data_disk_category
+    volume_size           = var.data_disk_size
     delete_on_termination = true
-    throughput = var.data_throughput
-    iops = var.data_iops
+    throughput            = var.data_throughput
+    iops                  = var.data_iops
   }
 
   tags = {
@@ -60,14 +60,32 @@ variable "data_disk_size" {
   description = "数据盘大小"
 }
 
+variable "root_disk_size" {
+  description = "Root EBS volume size in GiB"
+  type        = number
+  default     = 100
+}
+
+variable "root_disk_category" {
+  description = "Root EBS volume type"
+  type        = string
+  default     = "gp3"
+}
+
+variable "data_disk_category" {
+  description = "Data EBS volume type"
+  type        = string
+  default     = "gp3"
+}
+
 variable "data_throughput" {
   description = "磁盘网络吞吐"
-  default = 125
+  default     = 125
 }
 
 variable "data_iops" {
   description = "磁盘吞吐量"
-  default = 5000
+  default     = 5000
 }
 
 ################################### 输出 ####################################

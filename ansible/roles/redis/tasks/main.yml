@@ -1,0 +1,80 @@
+---
+- name: Validate Redis topology
+  ansible.builtin.assert:
+    that:
+      - redis_mode in ['standalone', 'replication', 'cluster']
+      - redis_password | length > 0
+      - redis_mode != 'replication' or (groups.get('redis_primary', []) | length == 1 and groups.get('redis_replicas', []) | length > 0)
+      - redis_mode != 'cluster' or (groups.get('redis_cluster', []) | length >= 3 * (redis_cluster_replicas | int + 1))
+    fail_msg: "Set a supported redis_mode and REDIS_PASSWORD (or an Ansible Vault value)."
+
+- name: Install and start Docker
+  ansible.builtin.include_role:
+    name: docker
+
+- name: Create persistent Redis data directory
+  ansible.builtin.file:
+    path: "{{ redis_data_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0750"
+
+- name: Render Redis configuration
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /etc/redis.conf
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart Redis container
+
+- name: Run Redis container
+  community.docker.docker_container:
+    name: redis
+    image: "{{ redis_image }}"
+    state: started
+    restart_policy: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    published_ports: "{{ [redis_port | string ~ ':6379'] + (['16379:16379'] if redis_mode == 'cluster' else []) }}"
+    volumes:
+      - "{{ redis_data_dir }}:/data"
+      - /etc/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "{{ redis_password }}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  no_log: true
+
+- name: Apply Redis configuration changes before topology setup
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for Redis node to accept connections
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ redis_port }}"
+    state: started
+    timeout: 120
+
+- name: Read current Redis Cluster state
+  ansible.builtin.command:
+    argv: ["docker", "exec", "redis", "redis-cli", "-a", "{{ redis_password }}", "cluster", "info"]
+  register: redis_cluster_state
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when: redis_mode == 'cluster' and inventory_hostname == groups['redis_cluster'][0]
+
+- name: Initialize Redis Cluster once
+  ansible.builtin.command:
+    argv: "{{ ['docker', 'exec', 'redis', 'redis-cli', '-a', redis_password, '--cluster', 'create'] + redis_cluster_nodes + ['--cluster-replicas', redis_cluster_replicas | string, '--cluster-yes'] }}"
+  register: redis_cluster_create
+  changed_when: redis_cluster_create.rc == 0
+  failed_when: redis_cluster_create.rc != 0
+  no_log: true
+  run_once: true
+  when:
+    - redis_mode == 'cluster'
+    - inventory_hostname == groups['redis_cluster'][0]
+    - "'cluster_state:ok' not in redis_cluster_state.stdout"

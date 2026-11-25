@@ -1,0 +1,7 @@
+---
+- name: Restart Redis container
+  community.docker.docker_container:
+    name: redis
+    state: started
+    restart: true
+  no_log: true

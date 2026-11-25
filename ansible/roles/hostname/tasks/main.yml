@@ -1,0 +1,10 @@
+---
+- name: Require a valid inventory hostname
+  ansible.builtin.assert:
+    that:
+      - ansible_target_hostname | length > 0
+      - "' ' not in ansible_target_hostname"
+
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ ansible_target_hostname }}"

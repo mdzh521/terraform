@@ -1,0 +1,21 @@
+bind 0.0.0.0
+protected-mode yes
+port 6379
+daemonize no
+dir /data
+appendonly yes
+requirepass {{ redis_password }}
+{% if redis_mode == 'replication' %}
+masterauth {{ redis_password }}
+{% if redis_role == 'replica' %}
+replicaof {{ hostvars[groups['redis_primary'][0]].ansible_host }} {{ redis_port }}
+{% endif %}
+{% endif %}
+{% if redis_mode == 'cluster' %}
+cluster-enabled yes
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+cluster-announce-ip {{ redis_announce_ip | default(ansible_host) }}
+cluster-announce-port {{ redis_port }}
+cluster-announce-bus-port 16379
+{% endif %}

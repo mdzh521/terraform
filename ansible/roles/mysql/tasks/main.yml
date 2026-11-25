@@ -1,0 +1,60 @@
+---
+- name: Check MySQL secret was supplied
+  ansible.builtin.assert:
+    that:
+      - mysql_root_password | length > 0
+      - mysql_buffer_pool_percent | int >= 50
+      - mysql_buffer_pool_percent | int <= 75
+    fail_msg: "Set MYSQL_ROOT_PASSWORD in the environment or provide mysql_root_password via Ansible Vault."
+
+- name: Calculate MySQL InnoDB buffer pool from host memory
+  ansible.builtin.set_fact:
+    mysql_buffer_pool_size_mb: "{{ (ansible_memtotal_mb * (mysql_buffer_pool_percent | float / 100)) | int }}"
+
+- name: Create MySQL configuration directory
+  ansible.builtin.file:
+    path: /etc/mysql/conf.d
+    state: directory
+    mode: "0755"
+
+- name: Render MySQL memory settings
+  ansible.builtin.template:
+    src: mysql-memory.cnf.j2
+    dest: /etc/mysql/conf.d/90-memory.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart MySQL container
+
+- name: Install and start Docker
+  ansible.builtin.include_role:
+    name: docker
+
+- name: Create persistent MySQL data directory
+  ansible.builtin.file:
+    path: "{{ mysql_data_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0750"
+
+- name: Run MySQL container
+  community.docker.docker_container:
+    name: mysql
+    image: "{{ mysql_image }}"
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "{{ mysql_port }}:3306"
+    volumes:
+      - "{{ mysql_data_dir }}:/var/lib/mysql"
+      - /etc/mysql/conf.d/90-memory.cnf:/etc/mysql/conf.d/90-memory.cnf:ro
+    env:
+      MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+  no_log: true
+
+- name: Wait for MySQL to accept connections
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ mysql_port }}"
+    state: started
+    timeout: 300

@@ -1,70 +1,24 @@
 # 基础设施及代码--Terraform
-## 目录结构
+
+## 项目目录
 
 ```
-# tree 
-.
-├── README.md
-├── ali
-│   ├── env
-│   │   ├── network
-│   │   │   ├── main.tf
-│   │   │   ├── credentials.tf
-│   │   │   └── version.tf
-│   │   └── service
-│   │       ├── main.tf
-│   │       ├── nginx.tf
-│   │       ├── credentials.tf
-│   │       └── version.tf
-│   └── module
-│       ├── ecs
-│       │   └── main.tf
-│       ├── nat
-│       │   └── main.tf
-│       ├── secgroup
-│       │   └── main.tf
-│       ├── vpc
-│       │   └── main.tf
-│       └── vswitch
-│           └── main.tf
-├── aws
-│   ├── env
-│   │   ├── network
-│   │   │   ├── main.tf
-│   │   │   ├── credentials.tf
-│   │   │   └── version.tf
-│   │   └── server
-│   │       ├── main.tf
-│   │       ├── mysql.tf
-│   │       ├── credentials.tf
-│   │       └── version.tf
-│   └── module
-│       ├── common
-│       │   ├── internet_gateway
-│       │   │   └── main.tf
-│       │   ├── nat
-│       │   │   └── main.tf
-│       │   ├── route
-│       │   │   └── main.tf
-│       │   ├── security_group
-│       │   │   └── main.tf
-│       │   ├── subnet
-│       │   │   └── main.tf
-│       │   └── vpc
-│       │       └── main.tf
-│       └── server
-│           └── nginx
-│               └── main.tf
-└── docker
-    ├── README.md
-    ├── network
-    │   ├── main.tf
-    │   └── versions.tf
-    └── server
-        ├── jenkins.tf
-        ├── main.tf
-        └── versions.tf
+aws/env/otc-prod/
+├── network/                  # 项目网络
+├── eks/                      # 项目 Kubernetes 集群
+├── rds/                      # 云数据库资源
+└── compute/                  # MySQL, Redis, Kafka, RocketMQ, etcd, RabbitMQ
+
+ali/env/otc-prod/
+├── network/
+└── compute/                  # Existing nginx plus MySQL, Redis, Kafka, RocketMQ, etcd, RabbitMQ
+
+ansible/                      # cross-project roles and playbooks
 ```
+
+Each compute service is its own Terraform root and HCL variable file. The service root calls the existing cloud compute module; Ansible roles and their defaults are shared through `ansible/`.
+
+Ansible initialization is modular per machine: each service HCL can independently enable hostname, security hardening, kernel tuning, memory tuning, firewall disablement, and SELinux disablement. See [ansible/README.md](ansible/README.md) for the module switches and service roles.
 
 ## 基础命令展示
 ### terraform

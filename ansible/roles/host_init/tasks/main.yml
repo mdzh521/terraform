@@ -1,0 +1,43 @@
+---
+- name: Validate host initialization module configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_initialization is mapping
+      - ansible_initialization.modules is mapping
+      - ansible_initialization.modules.keys() | difference(['hostname', 'security_hardening', 'kernel_tuning', 'memory_tuning', 'firewall_disable', 'selinux_disable', 'disk_mount']) | length == 0
+    fail_msg: "Every managed host must provide an ansible_initialization object and module switches."
+
+- name: Initialize hostname
+  ansible.builtin.include_role:
+    name: hostname
+  when: ansible_initialization.modules.hostname | default(false) | bool
+
+- name: Apply host security baseline
+  ansible.builtin.include_role:
+    name: security_hardening
+  when: ansible_initialization.modules.security_hardening | default(false) | bool
+
+- name: Apply kernel tuning
+  ansible.builtin.include_role:
+    name: kernel_tuning
+  when: ansible_initialization.modules.kernel_tuning | default(false) | bool
+
+- name: Apply memory tuning
+  ansible.builtin.include_role:
+    name: memory_tuning
+  when: ansible_initialization.modules.memory_tuning | default(false) | bool
+
+- name: Disable host firewall
+  ansible.builtin.include_role:
+    name: firewall_disable
+  when: ansible_initialization.modules.firewall_disable | default(false) | bool
+
+- name: Disable SELinux
+  ansible.builtin.include_role:
+    name: selinux_disable
+  when: ansible_initialization.modules.selinux_disable | default(false) | bool
+
+- name: Initialize and mount data disks
+  ansible.builtin.include_role:
+    name: disk_mount
+  when: ansible_initialization.modules.disk_mount | default(false) | bool

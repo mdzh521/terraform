@@ -1,0 +1,72 @@
+---
+- name: Optional modular host initialization
+  hosts: common
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: host_init
+      when: ansible_initialization.enabled | default(false) | bool
+
+- name: Deploy standalone MySQL
+  hosts: mysql
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: mysql
+      when: mysql_enabled | bool
+
+- name: Deploy standalone Redis
+  hosts: redis_standalone
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: redis
+      when: redis_enabled | bool and redis_mode == 'standalone'
+
+- name: Deploy Redis primary and replicas
+  hosts: redis_primary:redis_replicas
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: redis
+      when: redis_enabled | bool and redis_mode == 'replication'
+
+- name: Deploy Redis Cluster nodes
+  hosts: redis_cluster
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: redis
+      when: redis_enabled | bool and redis_mode == 'cluster'
+
+- name: Deploy Kafka nodes
+  hosts: kafka
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: kafka
+      when: kafka_enabled | bool
+
+- name: Deploy RocketMQ nodes
+  hosts: rocketmq
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: rocketmq
+      when: rocketmq_enabled | bool
+
+- name: Deploy etcd nodes
+  hosts: etcd
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: etcd
+      when: etcd_enabled | bool
+
+- name: Deploy RabbitMQ nodes
+  hosts: rabbitmq
+  vars_files:
+    - ../group_vars/all.yml
+  roles:
+    - role: rabbitmq
+      when: rabbitmq_enabled | bool

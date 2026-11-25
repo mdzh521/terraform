@@ -1,0 +1,7 @@
+---
+- name: Restart MySQL container
+  community.docker.docker_container:
+    name: mysql
+    state: started
+    restart: true
+  no_log: true

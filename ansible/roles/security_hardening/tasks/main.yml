@@ -1,0 +1,26 @@
+---
+- name: Write SSH hardening settings before distro defaults
+  ansible.builtin.blockinfile:
+    path: /etc/ssh/sshd_config
+    create: false
+    insertbefore: BOF
+    marker: "# {mark} OPS ANSIBLE SECURITY BASELINE"
+    block: |
+      PermitRootLogin {{ (ansible_initialization.security | default({})).permit_root_login | default('prohibit-password') }}
+      PasswordAuthentication {{ (ansible_initialization.security | default({})).password_authentication | default(false) | ternary('yes', 'no') }}
+      PermitEmptyPasswords no
+      PubkeyAuthentication yes
+      MaxAuthTries {{ (ansible_initialization.security | default({})).max_auth_tries | default(4) }}
+      LoginGraceTime {{ (ansible_initialization.security | default({})).login_grace_time | default(30) }}
+      X11Forwarding no
+    validate: "sshd -t -f %s"
+  notify: Restart SSH daemon
+
+- name: Apply security-focused kernel parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value | string }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/91-ops-security.conf
+    reload: true
+  loop: "{{ (ansible_initialization.security_parameters | default(ansible_security_parameters)) | dict2items }}"
